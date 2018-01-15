@@ -63,9 +63,11 @@ private:
 
     DeviceAddress mixedWaterAddress = {0x28, 0x61, 0xBF, 0x3A, 0x06, 0x00, 0x00, 0x48};
     DeviceAddress coldWaterAddress = {0x28, 0x55, 0x8A, 0xCC, 0x06, 0x00, 0x00, 0x57};
+    DeviceAddress hotWaterAddress = {0x28, 0x6F, 0xE8, 0xCA, 0x06, 0x00, 0x00, 0xEE};
 
     float mixedWaterTempC = 0;
     float coldWaterTempC = 0;
+    float hotWaterTempC = 0;
 
     Interval interval = Interval(MIXER_CYCLE_TIME);
 
@@ -74,11 +76,14 @@ private:
 
         mixedWaterTempC = dallasTemperature.getTempC(mixedWaterAddress);
         coldWaterTempC = dallasTemperature.getTempC(coldWaterAddress);
+        hotWaterTempC = dallasTemperature.getTempC(hotWaterAddress);
 
         Serial.print("mixedWaterTempC = ");
         Serial.print(mixedWaterTempC);
         Serial.print(" \tcoldWaterTempC = ");
         Serial.print(coldWaterTempC);
+        Serial.print(" \thotWaterTempC = ");
+        Serial.print(hotWaterTempC);
         Serial.println();
     }
 
@@ -114,6 +119,8 @@ private:
         Serial.println(dallasTemperature.isConnected(mixedWaterAddress));
         Serial.print("coldWaterSensor = ");
         Serial.println(dallasTemperature.isConnected(coldWaterAddress));
+        Serial.print("hotWaterSensor = ");
+        Serial.println(dallasTemperature.isConnected(hotWaterAddress));
 
         if (!dallasTemperature.isConnected(mixedWaterAddress)) {
             Serial.println("mixedWaterSensor is not connected");
