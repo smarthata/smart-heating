@@ -29,10 +29,26 @@ public:
 
             updateTemperatures();
 
-            if (mixedWaterTempC == -127.0) {
+            if (mixedWaterTempC == DEVICE_DISCONNECTED_C) {
                 Serial.println("mixedWaterSensor disconnected");
                 blink();
                 return;
+            }
+            if (coldWaterTempC == DEVICE_DISCONNECTED_C) {
+                Serial.println("coldWaterSensor disconnected");
+                blink();
+            }
+            if (hotWaterTempC == DEVICE_DISCONNECTED_C) {
+                Serial.println("hotWaterTempC disconnected");
+                blink();
+            }
+            if (streetTempC == DEVICE_DISCONNECTED_C) {
+                Serial.println("streetTempC disconnected");
+                blink();
+            }
+            if (coldWaterTempC > hotWaterTempC) {
+                Serial.println("coldWaterTempC > hotWaterTempC");
+                blink();
             }
 
             if (mixedWaterTempC < temp - border) {
@@ -64,10 +80,12 @@ private:
     DeviceAddress mixedWaterAddress = {0x28, 0x61, 0xBF, 0x3A, 0x06, 0x00, 0x00, 0x48};
     DeviceAddress coldWaterAddress = {0x28, 0x55, 0x8A, 0xCC, 0x06, 0x00, 0x00, 0x57};
     DeviceAddress hotWaterAddress = {0x28, 0x6F, 0xE8, 0xCA, 0x06, 0x00, 0x00, 0xEE};
+    DeviceAddress streetAddress = {0x28, 0xFF, 0x98, 0x3A, 0x91, 0x16, 0x04, 0x36};
 
     float mixedWaterTempC = 0;
     float coldWaterTempC = 0;
     float hotWaterTempC = 0;
+    float streetTempC = 0;
 
     Interval interval = Interval(MIXER_CYCLE_TIME);
 
@@ -77,6 +95,7 @@ private:
         mixedWaterTempC = dallasTemperature.getTempC(mixedWaterAddress);
         coldWaterTempC = dallasTemperature.getTempC(coldWaterAddress);
         hotWaterTempC = dallasTemperature.getTempC(hotWaterAddress);
+        streetTempC = dallasTemperature.getTempC(streetAddress);
 
         Serial.print("mixedWaterTempC = ");
         Serial.print(mixedWaterTempC);
@@ -84,6 +103,8 @@ private:
         Serial.print(coldWaterTempC);
         Serial.print(" \thotWaterTempC = ");
         Serial.print(hotWaterTempC);
+        Serial.print(" \tstreetTempC = ");
+        Serial.print(streetTempC);
         Serial.println();
     }
 
@@ -121,6 +142,8 @@ private:
         Serial.println(dallasTemperature.isConnected(coldWaterAddress));
         Serial.print("hotWaterSensor = ");
         Serial.println(dallasTemperature.isConnected(hotWaterAddress));
+        Serial.print("streetSensor = ");
+        Serial.println(dallasTemperature.isConnected(streetAddress));
 
         if (!dallasTemperature.isConnected(mixedWaterAddress)) {
             Serial.println("mixedWaterSensor is not connected");
