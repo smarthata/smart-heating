@@ -17,15 +17,23 @@ public:
     static const int RELAY_MIXER_DOWN = 11;
 
     Mixer() {
+        pinMode(LED_BUILTIN, OUTPUT);
         dallasTemperature.begin();
         dallasTemperature.setResolution(DALLAS_RESOLUTION);
         printDevices();
+        checkSensors();
     }
 
     void loop() {
         if (interval.isReady()) {
 
             updateTemperatures();
+
+            if (mixedWaterTempC == -127.0) {
+                Serial.println("mixedWaterSensor disconnected");
+                blink();
+                return;
+            }
 
             if (mixedWaterTempC < temp - border) {
                 Serial.println("UP");
@@ -79,6 +87,11 @@ private:
         Serial.print("DallasTemperature deviceCount = ");
         Serial.println(deviceCount);
 
+        for (int i = 0; i < deviceCount; ++i) {
+            blink();
+        }
+
+        oneWire.reset_search();
         DeviceAddress tempAddress;
         while (oneWire.search(tempAddress)) {
             printAddress(tempAddress);
@@ -96,15 +109,30 @@ private:
         Serial.println("}");
     }
 
+    void checkSensors() {
+        Serial.print("mixedWaterSensor = ");
+        Serial.println(dallasTemperature.isConnected(mixedWaterAddress));
+        Serial.print("coldWaterSensor = ");
+        Serial.println(dallasTemperature.isConnected(coldWaterAddress));
+
+        if (!dallasTemperature.isConnected(mixedWaterAddress)) {
+            Serial.println("mixedWaterSensor is not connected");
+            error();
+        }
+    }
+
     void error() {
-        pinMode(LED_BUILTIN, OUTPUT);
         Serial.println("Error");
         while (true) {
-            digitalWrite(LED_BUILTIN, HIGH);
-            delay(500);
-            digitalWrite(LED_BUILTIN, LOW);
-            delay(500);
+            blink();
         }
+    }
+
+    void blink() const {
+        digitalWrite(LED_BUILTIN, HIGH);
+        delay(500);
+        digitalWrite(LED_BUILTIN, LOW);
+        delay(500);
     }
 };
 
