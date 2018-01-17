@@ -2,6 +2,7 @@
 #define SMARTHATA_HEATING_MIXER_H
 
 #include <DallasTemperature.h>
+#include <TM1637Display.h>
 #include <Timing.h>
 #include "Relay.h"
 
@@ -22,12 +23,20 @@ public:
         dallasTemperature.setResolution(DALLAS_RESOLUTION);
         printDevices();
         checkSensors();
+
+        display.setBrightness(0x0f);
     }
 
     void loop() {
+        if (readInterval.isReady()) {
+            updateTemperatures();
+        }
+
         if (interval.isReady()) {
 
-            updateTemperatures();
+            if (millis() > 3600 * 1000) {
+                temp = 24;
+            }
 
             if (mixedWaterTempC == DEVICE_DISCONNECTED_C) {
                 Serial.println("mixedWaterSensor disconnected");
@@ -68,11 +77,13 @@ public:
     }
 
 private:
-    const int temp = 30;
-    const float border = 2.0;
+    int temp = 30;
+    const float border = 0.5;
 
     Relay relayMixerUp = Relay(RELAY_MIXER_UP);
     Relay relayMixerDown = Relay(RELAY_MIXER_DOWN);
+
+    TM1637Display display = TM1637Display(9, 10);
 
     OneWire oneWire = OneWire(DALLAS_PIN);
     DallasTemperature dallasTemperature = DallasTemperature(&oneWire);
@@ -88,6 +99,7 @@ private:
     float streetTempC = 0;
 
     Interval interval = Interval(MIXER_CYCLE_TIME);
+    Interval readInterval = Interval(1000);
 
     void updateTemperatures() {
         dallasTemperature.requestTemperatures();
@@ -96,6 +108,8 @@ private:
         coldWaterTempC = dallasTemperature.getTempC(coldWaterAddress);
         hotWaterTempC = dallasTemperature.getTempC(hotWaterAddress);
         streetTempC = dallasTemperature.getTempC(streetAddress);
+
+        display.showNumberDec((int) (10 * mixedWaterTempC));
 
         Serial.print("mixedWaterTempC = ");
         Serial.print(mixedWaterTempC);
