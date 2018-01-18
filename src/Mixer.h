@@ -12,6 +12,7 @@ class Mixer {
 public:
     static const int MIXER_CYCLE_TIME = 15000;
     static const int RELAY_ENABLE_TIME = 5000;
+    static const unsigned long LOW_WARM_TIME = (unsigned long) 3600 * 1000;
 
     static const int DALLAS_RESOLUTION = 11;
 
@@ -36,7 +37,7 @@ public:
         }
 
         if (interval.isReady()) {
-            if (millis() > 3600 * 1000) {
+            if (millis() > LOW_WARM_TIME) {
                 temp = 24;
                 Serial.println("TEMP NOW 24 !!!");
             }
