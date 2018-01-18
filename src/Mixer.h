@@ -6,6 +6,8 @@
 #include <Timing.h>
 #include "Relay.h"
 
+void (*resetFunc)() = nullptr;
+
 class Mixer {
 public:
     static const int MIXER_CYCLE_TIME = 15000;
@@ -167,12 +169,16 @@ private:
 
     void error() {
         Serial.println("Error");
-        while (true) {
+        for (int i = 0; i < 30; ++i) {
             blink();
         }
+        Serial.println("Reset");
+        Serial.flush();
+        resetFunc();
     }
 
     void blink() const {
+        Serial.write('.');
         digitalWrite(LED_BUILTIN, HIGH);
         delay(500);
         digitalWrite(LED_BUILTIN, LOW);
