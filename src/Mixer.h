@@ -32,48 +32,33 @@ public:
     void loop() {
         if (readInterval.isReady()) {
             updateTemperatures();
+            checkErrorStates();
         }
 
         if (interval.isReady()) {
-
             if (millis() > 3600 * 1000) {
                 temp = 24;
-            }
-
-            if (mixedWaterTempC == DEVICE_DISCONNECTED_C) {
-                Serial.println("mixedWaterSensor disconnected");
-                blink();
-                return;
-            }
-            if (coldWaterTempC == DEVICE_DISCONNECTED_C) {
-                Serial.println("coldWaterSensor disconnected");
-                blink();
-            }
-            if (hotWaterTempC == DEVICE_DISCONNECTED_C) {
-                Serial.println("hotWaterTempC disconnected");
-                blink();
-            }
-            if (streetTempC == DEVICE_DISCONNECTED_C) {
-                Serial.println("streetTempC disconnected");
-                blink();
-            }
-            if (coldWaterTempC > hotWaterTempC) {
-                Serial.println("coldWaterTempC > hotWaterTempC");
-                blink();
+                Serial.println("TEMP NOW 24 !!!");
             }
 
             if (mixedWaterTempC < temp - border) {
                 Serial.println("UP");
                 relayMixerUp.enable();
-                delay(RELAY_ENABLE_TIME);
-                relayMixerUp.disable();
+                relayTimeout.start(RELAY_ENABLE_TIME);
             } else if (mixedWaterTempC > temp + border) {
                 Serial.println("DOWN");
                 relayMixerDown.enable();
-                delay(RELAY_ENABLE_TIME);
-                relayMixerDown.disable();
+                relayTimeout.start(RELAY_ENABLE_TIME);
             } else {
                 Serial.println("normal");
+            }
+        }
+
+        if (relayInterval.isReady() && relayTimeout.isReady()) {
+            if (relayMixerUp.isEnabled()) {
+                relayMixerUp.disable();
+            } else if (relayMixerDown.isEnabled()) {
+                relayMixerDown.disable();
             }
         }
     }
@@ -102,6 +87,8 @@ private:
 
     Interval interval = Interval(MIXER_CYCLE_TIME);
     Interval readInterval = Interval(1000);
+    Interval relayInterval = Interval(100);
+    Timeout relayTimeout;
 
     void updateTemperatures() {
         dallasTemperature.requestTemperatures();
@@ -164,6 +151,29 @@ private:
         if (!dallasTemperature.isConnected(mixedWaterAddress)) {
             Serial.println("mixedWaterSensor is not connected");
             error();
+        }
+    }
+
+    void checkErrorStates() {
+        if (mixedWaterTempC == DEVICE_DISCONNECTED_C) {
+            Serial.println("mixedWaterSensor disconnected");
+            error();
+        }
+        if (coldWaterTempC == DEVICE_DISCONNECTED_C) {
+            Serial.println("coldWaterSensor disconnected");
+            blink();
+        }
+        if (hotWaterTempC == DEVICE_DISCONNECTED_C) {
+            Serial.println("hotWaterTempC disconnected");
+            blink();
+        }
+        if (streetTempC == DEVICE_DISCONNECTED_C) {
+            Serial.println("streetTempC disconnected");
+            blink();
+        }
+        if (coldWaterTempC > hotWaterTempC) {
+            Serial.println("coldWaterTempC > hotWaterTempC");
+            blink();
         }
     }
 
