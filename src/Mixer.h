@@ -1,6 +1,7 @@
 #ifndef SMARTHATA_HEATING_MIXER_H
 #define SMARTHATA_HEATING_MIXER_H
 
+#include <Wire.h>
 #include <DallasTemperature.h>
 #include <TM1637Display.h>
 #include <Timing.h>
@@ -8,11 +9,14 @@
 
 void (*resetFunc)() = nullptr;
 
+float temp = 25.0;
+
 class Mixer {
 public:
+    static const byte SMART_HEATING_I2C_ADDRESS = 15;
+
     static const int MIXER_CYCLE_TIME = 15000;
     static const int RELAY_ENABLE_TIME = 5000;
-    static const unsigned long LOW_WARM_TIME = (unsigned long) 3600 * 1000;
 
     static const int DALLAS_RESOLUTION = 11;
 
@@ -22,10 +26,12 @@ public:
 
     Mixer() {
         pinMode(LED_BUILTIN, OUTPUT);
+
+        initWire();
+
         dallasTemperature.begin();
         dallasTemperature.setResolution(DALLAS_RESOLUTION);
         printDevices();
-        checkSensors();
 
         display.setBrightness(0x0f);
     }
@@ -37,11 +43,6 @@ public:
         }
 
         if (interval.isReady()) {
-            if (millis() > LOW_WARM_TIME) {
-                temp = 24;
-                Serial.println("TEMP NOW 24 !!!");
-            }
-
             if (mixedWaterTempC < temp - border) {
                 Serial.println("UP");
                 relayMixerUp.enable();
@@ -65,7 +66,6 @@ public:
     }
 
 private:
-    int temp = 30;
     const float border = 0.5;
 
     Relay relayMixerUp = Relay(RELAY_MIXER_UP);
@@ -101,15 +101,32 @@ private:
 
         display.showNumberDec((int) (10 * mixedWaterTempC));
 
-        Serial.print("mixedWaterTempC = ");
+        Serial.print("temp = ");
+        Serial.print(temp);
+        Serial.print(" \tmixedWaterTempC = ");
         Serial.print(mixedWaterTempC);
-        Serial.print(" \tcoldWaterTempC = ");
-        Serial.print(coldWaterTempC);
-        Serial.print(" \thotWaterTempC = ");
-        Serial.print(hotWaterTempC);
-        Serial.print(" \tstreetTempC = ");
-        Serial.print(streetTempC);
+//        Serial.print(" \tcoldWaterTempC = ");
+//        Serial.print(coldWaterTempC);
+//        Serial.print(" \thotWaterTempC = ");
+//        Serial.print(hotWaterTempC);
+//        Serial.print(" \tstreetTempC = ");
+//        Serial.print(streetTempC);
         Serial.println();
+    }
+
+    void initWire() {
+        Wire.begin(SMART_HEATING_I2C_ADDRESS);
+        Wire.onReceive([](int size) {
+            if (size == 0) return;
+
+            char buffer[size + 1];
+            Wire.readBytes(buffer, (size_t) size);
+            buffer[size] = '\0';
+            Serial.println(buffer);
+
+            temp = atof(buffer + 5); // skip 'temp='
+            Serial.println(temp);
+        });
     }
 
     void printDevices() {
@@ -118,7 +135,7 @@ private:
         Serial.println(deviceCount);
 
         for (int i = 0; i < deviceCount; ++i) {
-            blink();
+            blink(300);
         }
 
         oneWire.reset_search();
@@ -139,43 +156,27 @@ private:
         Serial.println("}");
     }
 
-    void checkSensors() {
-        Serial.print("mixedWaterSensor = ");
-        Serial.println(dallasTemperature.isConnected(mixedWaterAddress));
-        Serial.print("coldWaterSensor = ");
-        Serial.println(dallasTemperature.isConnected(coldWaterAddress));
-        Serial.print("hotWaterSensor = ");
-        Serial.println(dallasTemperature.isConnected(hotWaterAddress));
-        Serial.print("streetSensor = ");
-        Serial.println(dallasTemperature.isConnected(streetAddress));
-
-        if (!dallasTemperature.isConnected(mixedWaterAddress)) {
-            Serial.println("mixedWaterSensor is not connected");
-            error();
-        }
-    }
-
     void checkErrorStates() {
         if (mixedWaterTempC == DEVICE_DISCONNECTED_C) {
             Serial.println("mixedWaterSensor disconnected");
             error();
         }
-        if (coldWaterTempC == DEVICE_DISCONNECTED_C) {
-            Serial.println("coldWaterSensor disconnected");
-            blink();
-        }
-        if (hotWaterTempC == DEVICE_DISCONNECTED_C) {
-            Serial.println("hotWaterTempC disconnected");
-            blink();
-        }
+//        if (coldWaterTempC == DEVICE_DISCONNECTED_C) {
+//            Serial.println("coldWaterSensor disconnected");
+//            blink();
+//        }
+//        if (hotWaterTempC == DEVICE_DISCONNECTED_C) {
+//            Serial.println("hotWaterTempC disconnected");
+//            blink();
+//        }
 //        if (streetTempC == DEVICE_DISCONNECTED_C) {
 //            Serial.println("streetTempC disconnected");
 //            blink();
 //        }
-        if (coldWaterTempC > hotWaterTempC) {
-            Serial.println("coldWaterTempC > hotWaterTempC");
-            blink();
-        }
+//        if (coldWaterTempC > hotWaterTempC) {
+//            Serial.println("coldWaterTempC > hotWaterTempC");
+//            blink();
+//        }
     }
 
     void error() {
