@@ -168,10 +168,10 @@ private:
             Serial.println("hotWaterTempC disconnected");
             blink();
         }
-        if (streetTempC == DEVICE_DISCONNECTED_C) {
-            Serial.println("streetTempC disconnected");
-            blink();
-        }
+//        if (streetTempC == DEVICE_DISCONNECTED_C) {
+//            Serial.println("streetTempC disconnected");
+//            blink();
+//        }
         if (coldWaterTempC > hotWaterTempC) {
             Serial.println("coldWaterTempC > hotWaterTempC");
             blink();
@@ -179,21 +179,25 @@ private:
     }
 
     void error() {
+        relayMixerUp.disable();
+        relayMixerDown.disable();
+
         Serial.println("Error");
-        for (int i = 0; i < 30; ++i) {
-            blink();
+
+        for (int i = 0; i < 10; ++i) {
+            blink(1000);
         }
         Serial.println("Reset");
         Serial.flush();
         resetFunc();
     }
 
-    void blink() const {
+    void blink(unsigned int delayMs = 500) const {
         Serial.write('.');
         digitalWrite(LED_BUILTIN, HIGH);
-        delay(500);
+        delay(delayMs);
         digitalWrite(LED_BUILTIN, LOW);
-        delay(500);
+        delay(delayMs);
     }
 };
 
