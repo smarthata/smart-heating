@@ -10,6 +10,15 @@
 void (*resetFunc)() = nullptr;
 
 float temp = 25.0;
+float mixedWaterTempC = 0;
+float coldWaterTempC = 0;
+float hotWaterTempC = 0;
+float streetTempC = 0;
+
+struct SmartHeatingDto {
+    float tempFloor = 0;
+    float realTemp = 0;
+} dto;
 
 class Mixer {
 public:
@@ -81,11 +90,6 @@ private:
     DeviceAddress hotWaterAddress = {0x28, 0x6F, 0xE8, 0xCA, 0x06, 0x00, 0x00, 0xEE};
     DeviceAddress streetAddress = {0x28, 0xFF, 0x98, 0x3A, 0x91, 0x16, 0x04, 0x36};
 
-    float mixedWaterTempC = 0;
-    float coldWaterTempC = 0;
-    float hotWaterTempC = 0;
-    float streetTempC = 0;
-
     Interval interval = Interval(MIXER_CYCLE_TIME);
     Interval readInterval = Interval(1000);
     Interval relayInterval = Interval(100);
@@ -117,15 +121,14 @@ private:
     void initWire() {
         Wire.begin(SMART_HEATING_I2C_ADDRESS);
         Wire.onReceive([](int size) {
-            if (size == 0) return;
-
-            char buffer[size + 1];
-            Wire.readBytes(buffer, (size_t) size);
-            buffer[size] = '\0';
-            Serial.println(buffer);
-
-            temp = atof(buffer + 5); // skip 'temp='
+            if (size != sizeof(SmartHeatingDto)) return;
+            Wire.readBytes((char *) &dto, (size_t) size);
+            temp = dto.tempFloor;
             Serial.println(temp);
+        });
+        Wire.onRequest([]() {
+            dto.realTemp = mixedWaterTempC;
+            Wire.write((char *) &dto, sizeof(SmartHeatingDto));
         });
     }
 
