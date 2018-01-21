@@ -3,13 +3,13 @@
 
 #include <Wire.h>
 #include <DallasTemperature.h>
-#include <TM1637Display.h>
+#include <Adafruit_SSD1306.h>
 #include <Timing.h>
 #include "Relay.h"
 
 void (*resetFunc)() = nullptr;
 
-float temp = 25.0;
+float temp = 24.0;
 float mixedWaterTempC = 0;
 float coldWaterTempC = 0;
 float hotWaterTempC = 0;
@@ -23,6 +23,7 @@ struct SmartHeatingDto {
 class Mixer {
 public:
     static const byte SMART_HEATING_I2C_ADDRESS = 15;
+    static const byte DISPLAY_SSD1306_ADDRESS = 0x3C;
 
     static const int MIXER_CYCLE_TIME = 15000;
     static const int RELAY_ENABLE_TIME = 5000;
@@ -37,12 +38,8 @@ public:
         pinMode(LED_BUILTIN, OUTPUT);
 
         initWire();
-
-        dallasTemperature.begin();
-        dallasTemperature.setResolution(DALLAS_RESOLUTION);
-        printDevices();
-
-        display.setBrightness(0x0f);
+        initTemperatureSensors();
+        initDisplay();
     }
 
     void loop() {
@@ -53,15 +50,15 @@ public:
 
         if (interval.isReady()) {
             if (mixedWaterTempC < temp - border) {
-                Serial.println("UP");
+                DEBUG_SERIAL_LN_F("UP");
                 relayMixerUp.enable();
                 relayTimeout.start(RELAY_ENABLE_TIME);
             } else if (mixedWaterTempC > temp + border) {
-                Serial.println("DOWN");
+                DEBUG_SERIAL_LN_F("DOWN");
                 relayMixerDown.enable();
                 relayTimeout.start(RELAY_ENABLE_TIME);
             } else {
-                Serial.println("normal");
+                DEBUG_SERIAL_LN_F("normal");
             }
         }
 
@@ -80,7 +77,9 @@ private:
     Relay relayMixerUp = Relay(RELAY_MIXER_UP);
     Relay relayMixerDown = Relay(RELAY_MIXER_DOWN);
 
-    TM1637Display display = TM1637Display(9, 10);
+#ifdef DISPLAY_SSD1306
+    Adafruit_SSD1306 display;
+#endif
 
     OneWire oneWire = OneWire(DALLAS_PIN);
     DallasTemperature dallasTemperature = DallasTemperature(&oneWire);
@@ -91,7 +90,7 @@ private:
     DeviceAddress streetAddress = {0x28, 0xFF, 0x98, 0x3A, 0x91, 0x16, 0x04, 0x36};
 
     Interval interval = Interval(MIXER_CYCLE_TIME);
-    Interval readInterval = Interval(1000);
+    Interval readInterval = Interval(3000);
     Interval relayInterval = Interval(100);
     Timeout relayTimeout;
 
@@ -103,19 +102,34 @@ private:
         hotWaterTempC = dallasTemperature.getTempC(hotWaterAddress);
         streetTempC = dallasTemperature.getTempC(streetAddress);
 
-        display.showNumberDec((int) (10 * mixedWaterTempC));
+#ifdef DISPLAY_SSD1306
+        display.clearDisplay();
+        displayTemp(0, 0, temp);
+        displayTemp(0, 16, mixedWaterTempC);
+        displayTemp(0, 32, hotWaterTempC);
+        displayTemp(0, 48, coldWaterTempC);
+        display.display();
+#endif
+        DEBUG_SERIAL_F("temp = ");
+        DEBUG_SERIAL(temp);
+        DEBUG_SERIAL_F(" \tmixedWaterTempC = ");
+        DEBUG_SERIAL(mixedWaterTempC);
+        DEBUG_SERIAL_F(" \tcoldWaterTempC = ");
+        DEBUG_SERIAL(coldWaterTempC);
+        DEBUG_SERIAL_F(" \thotWaterTempC = ");
+        DEBUG_SERIAL(hotWaterTempC);
+//        DEBUG_SERIAL_F(" \tstreetTempC = ");
+//        DEBUG_SERIAL(streetTempC);
+        DEBUG_SERIAL_LN();
+    }
 
-        Serial.print("temp = ");
-        Serial.print(temp);
-        Serial.print(" \tmixedWaterTempC = ");
-        Serial.print(mixedWaterTempC);
-//        Serial.print(" \tcoldWaterTempC = ");
-//        Serial.print(coldWaterTempC);
-//        Serial.print(" \thotWaterTempC = ");
-//        Serial.print(hotWaterTempC);
-//        Serial.print(" \tstreetTempC = ");
-//        Serial.print(streetTempC);
-        Serial.println();
+    void displayTemp(int x, int y, float t) {
+#ifdef DISPLAY_SSD1306
+        display.setCursor(x, y);
+        display.print(t, 1);
+        display.print((char) 247);
+        display.print("C");
+#endif
     }
 
     void initWire() {
@@ -124,7 +138,7 @@ private:
             if (size != sizeof(SmartHeatingDto)) return;
             Wire.readBytes((char *) &dto, (size_t) size);
             temp = dto.tempFloor;
-            Serial.println(temp);
+            DEBUG_SERIAL_LN(temp);
         });
         Wire.onRequest([]() {
             dto.realTemp = mixedWaterTempC;
@@ -132,52 +146,72 @@ private:
         });
     }
 
+    void initTemperatureSensors() {
+        dallasTemperature.begin();
+        dallasTemperature.setResolution(DALLAS_RESOLUTION);
+        printDevices();
+    }
+
+
+    void initDisplay() {
+#ifdef DISPLAY_SSD1306
+        display.begin(SSD1306_SWITCHCAPVCC, DISPLAY_SSD1306_ADDRESS);
+        display.clearDisplay();
+        display.display();
+
+        display.setTextColor(WHITE);
+        display.setTextSize(2);
+#endif
+    }
+
     void printDevices() {
         byte deviceCount = dallasTemperature.getDeviceCount();
-        Serial.print("DallasTemperature deviceCount = ");
-        Serial.println(deviceCount);
+        DEBUG_SERIAL_F("DallasTemperature deviceCount = ");
+        DEBUG_SERIAL_LN(deviceCount);
 
         for (int i = 0; i < deviceCount; ++i) {
             blink(300);
         }
 
+#ifdef DEBUG
         oneWire.reset_search();
         DeviceAddress tempAddress;
         while (oneWire.search(tempAddress)) {
             printAddress(tempAddress);
         }
+#endif
     }
 
     void printAddress(DeviceAddress deviceAddress) {
-        Serial.write('{');
+        DEBUG_SERIAL_F("{");
         for (byte i = 0; i < 8; i++) {
-            Serial.print("0x");
-            if (deviceAddress[i] < 16) Serial.print("0");
-            Serial.print(deviceAddress[i], HEX);
-            Serial.print(", ");
+            DEBUG_SERIAL_F("0x");
+            if (deviceAddress[i] < 16) DEBUG_SERIAL_F("0");
+            DEBUG_SERIAL_HEX(deviceAddress[i], HEX);
+            DEBUG_SERIAL_F(", ");
         }
-        Serial.println("}");
+        DEBUG_SERIAL_LN_F("}");
     }
 
     void checkErrorStates() {
         if (mixedWaterTempC == DEVICE_DISCONNECTED_C) {
-            Serial.println("mixedWaterSensor disconnected");
-            error();
+            DEBUG_SERIAL_LN_F("mixedWaterSensor disconnected");
+//            error();
         }
 //        if (coldWaterTempC == DEVICE_DISCONNECTED_C) {
-//            Serial.println("coldWaterSensor disconnected");
+//            DEBUG_SERIAL_LN_F("coldWaterSensor disconnected");
 //            blink();
 //        }
 //        if (hotWaterTempC == DEVICE_DISCONNECTED_C) {
-//            Serial.println("hotWaterTempC disconnected");
+//            DEBUG_SERIAL_LN_F("hotWaterTempC disconnected");
 //            blink();
 //        }
 //        if (streetTempC == DEVICE_DISCONNECTED_C) {
-//            Serial.println("streetTempC disconnected");
+//            DEBUG_SERIAL_LN_F("streetTempC disconnected");
 //            blink();
 //        }
 //        if (coldWaterTempC > hotWaterTempC) {
-//            Serial.println("coldWaterTempC > hotWaterTempC");
+//            DEBUG_SERIAL_LN_F("coldWaterTempC > hotWaterTempC");
 //            blink();
 //        }
     }
@@ -186,18 +220,20 @@ private:
         relayMixerUp.disable();
         relayMixerDown.disable();
 
-        Serial.println("Error");
+        DEBUG_SERIAL_LN_F("Error");
 
         for (int i = 0; i < 10; ++i) {
             blink(1000);
         }
-        Serial.println("Reset");
+        DEBUG_SERIAL_LN_F("Reset");
+#ifdef DEBUG
         Serial.flush();
+#endif
         resetFunc();
     }
 
     void blink(unsigned int delayMs = 500) const {
-        Serial.write('.');
+        DEBUG_SERIAL_F(".");
         digitalWrite(LED_BUILTIN, HIGH);
         delay(delayMs);
         digitalWrite(LED_BUILTIN, LOW);
