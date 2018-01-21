@@ -48,11 +48,15 @@ public:
             if (th.mixedWaterTemp < th.tempFloor - border) {
                 DEBUG_SERIAL_LN_F("UP");
                 relayMixerUp.enable();
-                relayTimeout.start(RELAY_ENABLE_TIME);
+
+                float diff = constrain(th.tempFloor - border - th.mixedWaterTemp, border, 2);
+                relayTimeout.start(calcRelayTime(diff));
             } else if (th.mixedWaterTemp > th.tempFloor + border) {
                 DEBUG_SERIAL_LN_F("DOWN");
                 relayMixerDown.enable();
-                relayTimeout.start(RELAY_ENABLE_TIME);
+
+                float diff = constrain(th.mixedWaterTemp - th.tempFloor - border, border, 2);
+                relayTimeout.start(calcRelayTime(diff));
             } else {
                 DEBUG_SERIAL_LN_F("normal");
             }
@@ -67,8 +71,12 @@ public:
         }
     }
 
+    unsigned int calcRelayTime(float diff) const {
+        return (unsigned int) map((int) (10 * diff), (int) (10 * border), (int) (10 * 2.0), 500, 8000);
+    }
+
 private:
-    const float border = 0.5;
+    const float border = 0.4;
 
     Relay relayMixerUp = Relay(RELAY_MIXER_UP);
     Relay relayMixerDown = Relay(RELAY_MIXER_DOWN);
@@ -118,7 +126,7 @@ private:
         DEBUG_SERIAL(th.streetTemp);
         DEBUG_SERIAL_LN();
     }
-    
+
     float safeReadTemp(DeviceAddress &address) {
         float tempC = dallasTemperature.getTempC(address);
         Timeout t;
