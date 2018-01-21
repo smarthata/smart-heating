@@ -9,16 +9,13 @@
 
 void (*resetFunc)() = nullptr;
 
-float temp = 24.0;
-float mixedWaterTempC = 0;
-float coldWaterTempC = 0;
-float hotWaterTempC = 0;
-float streetTempC = 0;
-
 struct SmartHeatingDto {
     float tempFloor = 0;
-    float realTemp = 0;
-} dto;
+    float mixedWaterTemp = 0;
+    float coldWaterTemp = 0;
+    float hotWaterTemp = 0;
+    float streetTemp = 0;
+} th;
 
 class Mixer {
 public:
@@ -45,15 +42,14 @@ public:
     void loop() {
         if (readInterval.isReady()) {
             updateTemperatures();
-            checkErrorStates();
         }
 
         if (interval.isReady()) {
-            if (mixedWaterTempC < temp - border) {
+            if (th.mixedWaterTemp < th.tempFloor - border) {
                 DEBUG_SERIAL_LN_F("UP");
                 relayMixerUp.enable();
                 relayTimeout.start(RELAY_ENABLE_TIME);
-            } else if (mixedWaterTempC > temp + border) {
+            } else if (th.mixedWaterTemp > th.tempFloor + border) {
                 DEBUG_SERIAL_LN_F("DOWN");
                 relayMixerDown.enable();
                 relayTimeout.start(RELAY_ENABLE_TIME);
@@ -97,29 +93,29 @@ private:
     void updateTemperatures() {
         dallasTemperature.requestTemperatures();
 
-        mixedWaterTempC = dallasTemperature.getTempC(mixedWaterAddress);
-        coldWaterTempC = dallasTemperature.getTempC(coldWaterAddress);
-        hotWaterTempC = dallasTemperature.getTempC(hotWaterAddress);
-        streetTempC = dallasTemperature.getTempC(streetAddress);
+        th.mixedWaterTemp = dallasTemperature.getTempC(mixedWaterAddress);
+        th.coldWaterTemp = dallasTemperature.getTempC(coldWaterAddress);
+        th.hotWaterTemp = dallasTemperature.getTempC(hotWaterAddress);
+        th.streetTemp = dallasTemperature.getTempC(streetAddress);
 
 #ifdef DISPLAY_SSD1306
         display.clearDisplay();
-        displayTemp(0, 0, temp);
-        displayTemp(0, 16, mixedWaterTempC);
-        displayTemp(0, 32, hotWaterTempC);
-        displayTemp(0, 48, coldWaterTempC);
+        displayTemp(0, 0, th.tempFloor);
+        displayTemp(0, 16, th.mixedWaterTemp);
+        displayTemp(0, 32, th.hotWaterTemp);
+        displayTemp(0, 48, th.coldWaterTemp);
         display.display();
 #endif
-        DEBUG_SERIAL_F("temp = ");
-        DEBUG_SERIAL(temp);
-        DEBUG_SERIAL_F(" \tmixedWaterTempC = ");
-        DEBUG_SERIAL(mixedWaterTempC);
-        DEBUG_SERIAL_F(" \tcoldWaterTempC = ");
-        DEBUG_SERIAL(coldWaterTempC);
-        DEBUG_SERIAL_F(" \thotWaterTempC = ");
-        DEBUG_SERIAL(hotWaterTempC);
-//        DEBUG_SERIAL_F(" \tstreetTempC = ");
-//        DEBUG_SERIAL(streetTempC);
+        DEBUG_SERIAL_F("tempFloor = ");
+        DEBUG_SERIAL(th.tempFloor);
+        DEBUG_SERIAL_F(" \tmixedWaterTemp = ");
+        DEBUG_SERIAL(th.mixedWaterTemp);
+        DEBUG_SERIAL_F(" \tcoldWaterTemp = ");
+        DEBUG_SERIAL(th.coldWaterTemp);
+        DEBUG_SERIAL_F(" \thotWaterTemp = ");
+        DEBUG_SERIAL(th.hotWaterTemp);
+        DEBUG_SERIAL_F(" \tstreetTemp = ");
+        DEBUG_SERIAL(th.streetTemp);
         DEBUG_SERIAL_LN();
     }
 
@@ -136,12 +132,20 @@ private:
         Wire.begin(SMART_HEATING_I2C_ADDRESS);
         Wire.onReceive([](int size) {
             if (size != sizeof(SmartHeatingDto)) return;
+
+            SmartHeatingDto dto;
             Wire.readBytes((char *) &dto, (size_t) size);
-            temp = dto.tempFloor;
-            DEBUG_SERIAL_LN(temp);
+
+            if (dto.tempFloor >= 10 && dto.tempFloor <= 35) {
+                th.tempFloor = dto.tempFloor;
+                DEBUG_SERIAL_LN(th.tempFloor);
+            }
         });
         Wire.onRequest([]() {
-            dto.realTemp = mixedWaterTempC;
+            SmartHeatingDto dto;
+            dto.mixedWaterTemp = th.mixedWaterTemp;
+            dto.hotWaterTemp = th.hotWaterTemp;
+            dto.coldWaterTemp = th.coldWaterTemp;
             Wire.write((char *) &dto, sizeof(SmartHeatingDto));
         });
     }
@@ -191,29 +195,6 @@ private:
             DEBUG_SERIAL_F(", ");
         }
         DEBUG_SERIAL_LN_F("}");
-    }
-
-    void checkErrorStates() {
-        if (mixedWaterTempC == DEVICE_DISCONNECTED_C) {
-            DEBUG_SERIAL_LN_F("mixedWaterSensor disconnected");
-//            error();
-        }
-//        if (coldWaterTempC == DEVICE_DISCONNECTED_C) {
-//            DEBUG_SERIAL_LN_F("coldWaterSensor disconnected");
-//            blink();
-//        }
-//        if (hotWaterTempC == DEVICE_DISCONNECTED_C) {
-//            DEBUG_SERIAL_LN_F("hotWaterTempC disconnected");
-//            blink();
-//        }
-//        if (streetTempC == DEVICE_DISCONNECTED_C) {
-//            DEBUG_SERIAL_LN_F("streetTempC disconnected");
-//            blink();
-//        }
-//        if (coldWaterTempC > hotWaterTempC) {
-//            DEBUG_SERIAL_LN_F("coldWaterTempC > hotWaterTempC");
-//            blink();
-//        }
     }
 
     void error() {
