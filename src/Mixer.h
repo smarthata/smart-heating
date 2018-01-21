@@ -93,10 +93,10 @@ private:
     void updateTemperatures() {
         dallasTemperature.requestTemperatures();
 
-        th.mixedWaterTemp = dallasTemperature.getTempC(mixedWaterAddress);
-        th.coldWaterTemp = dallasTemperature.getTempC(coldWaterAddress);
-        th.hotWaterTemp = dallasTemperature.getTempC(hotWaterAddress);
-        th.streetTemp = dallasTemperature.getTempC(streetAddress);
+        th.mixedWaterTemp = safeReadTemp(mixedWaterAddress);
+        th.coldWaterTemp = safeReadTemp(coldWaterAddress);
+        th.hotWaterTemp = safeReadTemp(hotWaterAddress);
+        th.streetTemp = safeReadTemp(streetAddress);
 
 #ifdef DISPLAY_SSD1306
         display.clearDisplay();
@@ -117,6 +117,17 @@ private:
         DEBUG_SERIAL_F(" \tstreetTemp = ");
         DEBUG_SERIAL(th.streetTemp);
         DEBUG_SERIAL_LN();
+    }
+    
+    float safeReadTemp(DeviceAddress &address) {
+        float tempC = dallasTemperature.getTempC(address);
+        Timeout t;
+        t.start(1000);
+        while (tempC == DEVICE_DISCONNECTED_C && !t.isReady()) {
+            dallasTemperature.requestTemperaturesByAddress(address);
+            tempC = dallasTemperature.getTempC(address);
+        }
+        return tempC;
     }
 
     void displayTemp(int x, int y, float t) {
