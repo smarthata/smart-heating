@@ -22,8 +22,7 @@ public:
     static const byte SMART_HEATING_I2C_ADDRESS = 15;
     static const byte DISPLAY_SSD1306_ADDRESS = 0x3C;
 
-    static const int MIXER_CYCLE_TIME = 15000;
-    static const int RELAY_ENABLE_TIME = 5000;
+    static const int MIXER_CYCLE_TIME = 10000;
 
     static const int DALLAS_RESOLUTION = 11;
 
@@ -33,6 +32,8 @@ public:
 
     Mixer() {
         pinMode(LED_BUILTIN, OUTPUT);
+
+        th.tempFloor = 25;
 
         initWire();
         initTemperatureSensors();
@@ -44,20 +45,23 @@ public:
             updateTemperatures();
         }
 
-        if (interval.isReady()) {
+        if (interval.isReady() && th.mixedWaterTemp != DEVICE_DISCONNECTED_C) {
             if (th.mixedWaterTemp < th.tempFloor - border) {
                 DEBUG_SERIAL_LN_F("UP");
                 relayMixerUp.enable();
 
                 float diff = constrain(th.tempFloor - border - th.mixedWaterTemp, border, 2);
-                relayTimeout.start(calcRelayTime(diff));
+                relayTime = calcRelayTime(diff);
+                relayTimeout.start(relayTime);
             } else if (th.mixedWaterTemp > th.tempFloor + border) {
                 DEBUG_SERIAL_LN_F("DOWN");
                 relayMixerDown.enable();
 
                 float diff = constrain(th.mixedWaterTemp - th.tempFloor - border, border, 2);
-                relayTimeout.start(calcRelayTime(diff));
+                relayTime = calcRelayTime(diff);
+                relayTimeout.start(relayTime);
             } else {
+                relayTime = 0;
                 DEBUG_SERIAL_LN_F("normal");
             }
         }
@@ -69,14 +73,14 @@ public:
                 relayMixerDown.disable();
             }
         }
-    }
 
-    unsigned int calcRelayTime(float diff) const {
-        return (unsigned int) map((int) (10 * diff), (int) (10 * border), (int) (10 * 2.0), 500, 8000);
+        if (millis() > 7200000) {
+            resetFunc();
+        }
     }
 
 private:
-    const float border = 0.4;
+    const float border = 0.2;
 
     Relay relayMixerUp = Relay(RELAY_MIXER_UP);
     Relay relayMixerDown = Relay(RELAY_MIXER_DOWN);
@@ -93,10 +97,13 @@ private:
     DeviceAddress hotWaterAddress = {0x28, 0x6F, 0xE8, 0xCA, 0x06, 0x00, 0x00, 0xEE};
     DeviceAddress streetAddress = {0x28, 0xFF, 0x98, 0x3A, 0x91, 0x16, 0x04, 0x36};
 
+    Timeout readTimeout;
+
     Interval interval = Interval(MIXER_CYCLE_TIME);
-    Interval readInterval = Interval(3000);
+    Interval readInterval = Interval(1000);
     Interval relayInterval = Interval(100);
     Timeout relayTimeout;
+    unsigned int relayTime = 0;
 
     void updateTemperatures() {
         dallasTemperature.requestTemperatures();
@@ -112,6 +119,15 @@ private:
         displayTemp(0, 16, th.mixedWaterTemp);
         displayTemp(0, 32, th.hotWaterTemp);
         displayTemp(0, 48, th.coldWaterTemp);
+
+        displayTemp(70, 48, th.streetTemp);
+//        display.setCursor(85, 48);
+//        display.print(th.streetTemp);
+
+        if (relayTime > 0) {
+            display.setCursor(85, 0);
+            display.print(relayTime / 1000);
+        }
         display.display();
 #endif
         DEBUG_SERIAL_F("tempFloor = ");
@@ -129,9 +145,8 @@ private:
 
     float safeReadTemp(DeviceAddress &address) {
         float tempC = dallasTemperature.getTempC(address);
-        Timeout t;
-        t.start(1000);
-        while (tempC == DEVICE_DISCONNECTED_C && !t.isReady()) {
+        readTimeout.start(500);
+        while (tempC == DEVICE_DISCONNECTED_C && !readTimeout.isReady()) {
             dallasTemperature.requestTemperaturesByAddress(address);
             tempC = dallasTemperature.getTempC(address);
         }
@@ -147,6 +162,14 @@ private:
 #endif
     }
 
+    unsigned int calcRelayTime(float diff) const {
+        return (unsigned int) mapFloat(diff, border, 3.0, 1000, 7000);
+    }
+
+    float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) const {
+        return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+    }
+
     void initWire() {
         Wire.begin(SMART_HEATING_I2C_ADDRESS);
         Wire.onReceive([](int size) {
@@ -155,7 +178,7 @@ private:
             SmartHeatingDto dto;
             Wire.readBytes((char *) &dto, (size_t) size);
 
-            if (dto.tempFloor >= 10 && dto.tempFloor <= 35) {
+            if (dto.tempFloor >= 10 && dto.tempFloor <= 45) {
                 th.tempFloor = dto.tempFloor;
                 DEBUG_SERIAL_LN(th.tempFloor);
             }
@@ -165,6 +188,7 @@ private:
             dto.mixedWaterTemp = th.mixedWaterTemp;
             dto.hotWaterTemp = th.hotWaterTemp;
             dto.coldWaterTemp = th.coldWaterTemp;
+            dto.streetTemp = th.streetTemp;
             Wire.write((char *) &dto, sizeof(SmartHeatingDto));
         });
     }
