@@ -10,10 +10,12 @@
 void (*resetFunc)() = nullptr;
 
 struct SmartHeatingDto {
-    float tempFloor = 0;
-    float mixedWaterTemp = 0;
-    float coldWaterTemp = 0;
-    float hotWaterTemp = 0;
+    float floorTemp = 0;
+    float floorMixedTemp = 0;
+    float floorColdTemp = 0;
+    float heatingHotTemp = 0;
+    float batteryColdTemp = 0;
+    float boilerTemp = 0;
     float streetTemp = 0;
 } th;
 
@@ -24,7 +26,7 @@ public:
 
     static const int MIXER_CYCLE_TIME = 10000;
 
-    static const int DALLAS_RESOLUTION = 11;
+    static const int DALLAS_RESOLUTION = 10;
 
     static const int DALLAS_PIN = 4;
     static const int RELAY_MIXER_UP = 12;
@@ -33,7 +35,7 @@ public:
     Mixer() {
         pinMode(LED_BUILTIN, OUTPUT);
 
-        th.tempFloor = 25;
+        th.floorTemp = 25;
 
         initWire();
         initTemperatureSensors();
@@ -45,19 +47,19 @@ public:
             updateTemperatures();
         }
 
-        if (interval.isReady() && th.mixedWaterTemp != DEVICE_DISCONNECTED_C) {
-            if (th.mixedWaterTemp < th.tempFloor - border) {
+        if (interval.isReady() && th.floorMixedTemp != DEVICE_DISCONNECTED_C) {
+            if (th.floorMixedTemp < th.floorTemp - border) {
                 DEBUG_SERIAL_LN_F("UP");
                 relayMixerUp.enable();
 
-                float diff = constrain(th.tempFloor - border - th.mixedWaterTemp, border, 2);
+                float diff = constrain(th.floorTemp - border - th.floorMixedTemp, border, 2);
                 relayTime = calcRelayTime(diff);
                 relayTimeout.start(relayTime);
-            } else if (th.mixedWaterTemp > th.tempFloor + border) {
+            } else if (th.floorMixedTemp > th.floorTemp + border) {
                 DEBUG_SERIAL_LN_F("DOWN");
                 relayMixerDown.enable();
 
-                float diff = constrain(th.mixedWaterTemp - th.tempFloor - border, border, 2);
+                float diff = constrain(th.floorMixedTemp - th.floorTemp - border, border, 2);
                 relayTime = calcRelayTime(diff);
                 relayTimeout.start(relayTime);
             } else {
@@ -73,14 +75,10 @@ public:
                 relayMixerDown.disable();
             }
         }
-
-        if (millis() > 7200000) {
-            resetFunc();
-        }
     }
 
 private:
-    const float border = 0.2;
+    const float border = 0.1;
 
     Relay relayMixerUp = Relay(RELAY_MIXER_UP);
     Relay relayMixerDown = Relay(RELAY_MIXER_DOWN);
@@ -95,6 +93,8 @@ private:
     DeviceAddress mixedWaterAddress = {0x28, 0x61, 0xBF, 0x3A, 0x06, 0x00, 0x00, 0x48};
     DeviceAddress coldWaterAddress = {0x28, 0x55, 0x8A, 0xCC, 0x06, 0x00, 0x00, 0x57};
     DeviceAddress hotWaterAddress = {0x28, 0x6F, 0xE8, 0xCA, 0x06, 0x00, 0x00, 0xEE};
+    DeviceAddress batteryColdAddress = {0x28, 0xC2, 0x6E, 0xCB, 0x06, 0x00, 0x00, 0x20};
+    DeviceAddress boilerAddress = {0x28, 0xD4, 0xD3, 0xE1, 0x06, 0x00, 0x00, 0x01};
     DeviceAddress streetAddress = {0x28, 0xFF, 0x98, 0x3A, 0x91, 0x16, 0x04, 0x36};
 
     Timeout readTimeout;
@@ -108,21 +108,21 @@ private:
     void updateTemperatures() {
         dallasTemperature.requestTemperatures();
 
-        th.mixedWaterTemp = safeReadTemp(mixedWaterAddress);
-        th.coldWaterTemp = safeReadTemp(coldWaterAddress);
-        th.hotWaterTemp = safeReadTemp(hotWaterAddress);
+        th.floorMixedTemp = safeReadTemp(mixedWaterAddress);
+        th.floorColdTemp = safeReadTemp(coldWaterAddress);
+        th.heatingHotTemp = safeReadTemp(hotWaterAddress);
+        th.batteryColdTemp = safeReadTemp(batteryColdAddress);
+        th.boilerTemp = safeReadTemp(boilerAddress);
         th.streetTemp = safeReadTemp(streetAddress);
 
 #ifdef DISPLAY_SSD1306
         display.clearDisplay();
-        displayTemp(0, 0, th.tempFloor);
-        displayTemp(0, 16, th.mixedWaterTemp);
-        displayTemp(0, 32, th.hotWaterTemp);
-        displayTemp(0, 48, th.coldWaterTemp);
+        displayTemp(0, 0, th.floorTemp);
+        displayTemp(0, 16, th.floorMixedTemp);
+        displayTemp(0, 32, th.heatingHotTemp);
+        displayTemp(0, 48, th.floorColdTemp);
 
         displayTemp(70, 48, th.streetTemp);
-//        display.setCursor(85, 48);
-//        display.print(th.streetTemp);
 
         if (relayTime > 0) {
             display.setCursor(85, 0);
@@ -130,22 +130,26 @@ private:
         }
         display.display();
 #endif
-        DEBUG_SERIAL_F("tempFloor = ");
-        DEBUG_SERIAL(th.tempFloor);
-        DEBUG_SERIAL_F(" \tmixedWaterTemp = ");
-        DEBUG_SERIAL(th.mixedWaterTemp);
-        DEBUG_SERIAL_F(" \tcoldWaterTemp = ");
-        DEBUG_SERIAL(th.coldWaterTemp);
-        DEBUG_SERIAL_F(" \thotWaterTemp = ");
-        DEBUG_SERIAL(th.hotWaterTemp);
-        DEBUG_SERIAL_F(" \tstreetTemp = ");
+        DEBUG_SERIAL_F("floorTemp = ");
+        DEBUG_SERIAL(th.floorTemp);
+        DEBUG_SERIAL_F(" \tfloorMixed = ");
+        DEBUG_SERIAL(th.floorMixedTemp);
+        DEBUG_SERIAL_F(" \tfloorCold = ");
+        DEBUG_SERIAL(th.floorColdTemp);
+        DEBUG_SERIAL_F(" \theatingHot = ");
+        DEBUG_SERIAL(th.heatingHotTemp);
+        DEBUG_SERIAL_F(" \tbatteryCold = ");
+        DEBUG_SERIAL(th.batteryColdTemp);
+        DEBUG_SERIAL_F(" \tboiler = ");
+        DEBUG_SERIAL(th.boilerTemp);
+        DEBUG_SERIAL_F(" \tstreet = ");
         DEBUG_SERIAL(th.streetTemp);
         DEBUG_SERIAL_LN();
     }
 
     float safeReadTemp(DeviceAddress &address) {
         float tempC = dallasTemperature.getTempC(address);
-        readTimeout.start(500);
+        readTimeout.start(1000);
         while (tempC == DEVICE_DISCONNECTED_C && !readTimeout.isReady()) {
             dallasTemperature.requestTemperaturesByAddress(address);
             tempC = dallasTemperature.getTempC(address);
@@ -178,16 +182,19 @@ private:
             SmartHeatingDto dto;
             Wire.readBytes((char *) &dto, (size_t) size);
 
-            if (dto.tempFloor >= 10 && dto.tempFloor <= 45) {
-                th.tempFloor = dto.tempFloor;
-                DEBUG_SERIAL_LN(th.tempFloor);
+            if (dto.floorTemp >= 10 && dto.floorTemp <= 45) {
+                th.floorTemp = dto.floorTemp;
+                DEBUG_SERIAL_LN(th.floorTemp);
             }
         });
         Wire.onRequest([]() {
             SmartHeatingDto dto;
-            dto.mixedWaterTemp = th.mixedWaterTemp;
-            dto.hotWaterTemp = th.hotWaterTemp;
-            dto.coldWaterTemp = th.coldWaterTemp;
+            dto.floorTemp = th.floorTemp;
+            dto.floorMixedTemp = th.floorMixedTemp;
+            dto.floorColdTemp = th.floorColdTemp;
+            dto.heatingHotTemp = th.heatingHotTemp;
+            dto.batteryColdTemp = th.batteryColdTemp;
+            dto.boilerTemp = th.boilerTemp;
             dto.streetTemp = th.streetTemp;
             Wire.write((char *) &dto, sizeof(SmartHeatingDto));
         });
