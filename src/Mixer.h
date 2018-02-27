@@ -4,7 +4,8 @@
 #include <Wire.h>
 #include <DallasTemperature.h>
 #include <Adafruit_SSD1306.h>
-#include <Timing.h>
+#include <Timeout.h>
+#include <Interval.h>
 #include "Relay.h"
 
 void (*resetFunc)() = nullptr;
