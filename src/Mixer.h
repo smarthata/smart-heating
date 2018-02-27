@@ -26,7 +26,7 @@ public:
 
     static const int MIXER_CYCLE_TIME = 10000;
 
-    static const int DALLAS_RESOLUTION = 10;
+    static const int DALLAS_RESOLUTION = 11;
 
     static const int DALLAS_PIN = 4;
     static const int RELAY_MIXER_UP = 12;
@@ -48,18 +48,19 @@ public:
         }
 
         if (interval.isReady() && th.floorMixedTemp != DEVICE_DISCONNECTED_C) {
-            if (th.floorMixedTemp < th.floorTemp - border) {
+            float floorMediumTemp = (th.floorMixedTemp + th.floorColdTemp) * 0.5;
+            if (floorMediumTemp < th.floorTemp - border) {
                 DEBUG_SERIAL_LN_F("UP");
                 relayMixerUp.enable();
 
-                float diff = constrain(th.floorTemp - border - th.floorMixedTemp, border, 2);
+                float diff = constrain(th.floorTemp - border - floorMediumTemp, border, 2);
                 relayTime = calcRelayTime(diff);
                 relayTimeout.start(relayTime);
-            } else if (th.floorMixedTemp > th.floorTemp + border) {
+            } else if (floorMediumTemp > th.floorTemp + border) {
                 DEBUG_SERIAL_LN_F("DOWN");
                 relayMixerDown.enable();
 
-                float diff = constrain(th.floorMixedTemp - th.floorTemp - border, border, 2);
+                float diff = constrain(floorMediumTemp - th.floorTemp - border, border, 2);
                 relayTime = calcRelayTime(diff);
                 relayTimeout.start(relayTime);
             } else {
