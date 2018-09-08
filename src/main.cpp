@@ -1,7 +1,6 @@
 #include <Arduino.h>
 
 //#define DEBUG true
-#define DISPLAY_SSD1306 true
 
 #ifdef DEBUG
 #define DEBUG_SERIAL(var) Serial.print(var);

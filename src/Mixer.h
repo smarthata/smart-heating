@@ -3,7 +3,6 @@
 
 #include <Wire.h>
 #include <DallasTemperature.h>
-#include <Adafruit_SSD1306.h>
 #include <Timeout.h>
 #include <Interval.h>
 #include "Relay.h"
@@ -23,7 +22,6 @@ struct SmartHeatingDto {
 class Mixer {
 public:
     static const byte SMART_HEATING_I2C_ADDRESS = 15;
-    static const byte DISPLAY_SSD1306_ADDRESS = 0x3C;
 
     static const int MIXER_CYCLE_TIME = 10000;
 
@@ -40,7 +38,6 @@ public:
 
         initWire();
         initTemperatureSensors();
-        initDisplay();
     }
 
     void loop() {
@@ -87,10 +84,6 @@ private:
     Relay relayMixerUp = Relay(RELAY_MIXER_UP);
     Relay relayMixerDown = Relay(RELAY_MIXER_DOWN);
 
-#ifdef DISPLAY_SSD1306
-    Adafruit_SSD1306 display;
-#endif
-
     OneWire oneWire = OneWire(DALLAS_PIN);
     DallasTemperature dallasTemperature = DallasTemperature(&oneWire);
 
@@ -119,21 +112,6 @@ private:
         th.boilerTemp = safeReadTemp(boilerAddress);
         th.streetTemp = safeReadTemp(streetAddress);
 
-#ifdef DISPLAY_SSD1306
-        display.clearDisplay();
-        displayTemp(0, 0, th.floorTemp);
-        displayTemp(0, 16, th.floorMixedTemp);
-        displayTemp(0, 32, th.heatingHotTemp);
-        displayTemp(0, 48, th.floorColdTemp);
-
-        displayTemp(70, 48, th.streetTemp);
-
-        if (relayTime > 0) {
-            display.setCursor(85, 0);
-            display.print(relayTime / 1000);
-        }
-        display.display();
-#endif
         DEBUG_SERIAL_F("floorTemp = ");
         DEBUG_SERIAL(th.floorTemp);
         DEBUG_SERIAL_F(" \tfloorMixed = ");
@@ -159,15 +137,6 @@ private:
             tempC = dallasTemperature.getTempC(address);
         }
         return tempC;
-    }
-
-    void displayTemp(int x, int y, float t) {
-#ifdef DISPLAY_SSD1306
-        display.setCursor(x, y);
-        display.print(t, 1);
-        display.print((char) 247);
-        display.print("C");
-#endif
     }
 
     unsigned int calcRelayTime(float diff) const {
@@ -208,18 +177,6 @@ private:
         dallasTemperature.begin();
         dallasTemperature.setResolution(DALLAS_RESOLUTION);
         printDevices();
-    }
-
-
-    void initDisplay() {
-#ifdef DISPLAY_SSD1306
-        display.begin(SSD1306_SWITCHCAPVCC, DISPLAY_SSD1306_ADDRESS);
-        display.clearDisplay();
-        display.display();
-
-        display.setTextColor(WHITE);
-        display.setTextSize(2);
-#endif
     }
 
     void printDevices() {
