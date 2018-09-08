@@ -27,7 +27,7 @@ public:
 
     static const int MIXER_CYCLE_TIME = 10000;
 
-    static const int DALLAS_RESOLUTION = 11;
+    static const int DALLAS_RESOLUTION = 12;
 
     static const int DALLAS_PIN = 4;
     static const int RELAY_MIXER_UP = 12;
@@ -49,7 +49,9 @@ public:
         }
 
         if (interval.isReady() && th.floorMixedTemp != DEVICE_DISCONNECTED_C) {
-            float floorMediumTemp = (th.floorMixedTemp + th.floorColdTemp) * 0.5;
+            float floorMediumTemp = th.floorMixedTemp;
+            if(th.floorColdTemp != DEVICE_DISCONNECTED_C)
+                floorMediumTemp = (th.floorMixedTemp + th.floorColdTemp) * 0.5;
             if (floorMediumTemp < th.floorTemp - border) {
                 DEBUG_SERIAL_LN_F("UP");
                 relayMixerUp.enable();
@@ -151,7 +153,7 @@ private:
 
     float safeReadTemp(DeviceAddress &address) {
         float tempC = dallasTemperature.getTempC(address);
-        readTimeout.start(1000);
+        readTimeout.start(2000);
         while (tempC == DEVICE_DISCONNECTED_C && !readTimeout.isReady()) {
             dallasTemperature.requestTemperaturesByAddress(address);
             tempC = dallasTemperature.getTempC(address);
@@ -169,7 +171,7 @@ private:
     }
 
     unsigned int calcRelayTime(float diff) const {
-        return (unsigned int) mapFloat(diff, border, 3.0, 1000, 7000);
+        return (unsigned int) mapFloat(diff, border, 1.5, 1000, 8000);
     }
 
     float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) const {
