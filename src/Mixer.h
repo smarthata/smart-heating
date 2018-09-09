@@ -49,18 +49,20 @@ public:
             float floorMediumTemp = th.floorMixedTemp;
             if(th.floorColdTemp != DEVICE_DISCONNECTED_C)
                 floorMediumTemp = (th.floorMixedTemp + th.floorColdTemp) * 0.5;
-            if (floorMediumTemp < th.floorTemp - border) {
+            if (floorMediumTemp < th.floorTemp - BORDER) {
                 Serial.println("UP");
+                relayMixerDown.disable();
                 relayMixerUp.enable();
 
-                float diff = constrain(th.floorTemp - border - floorMediumTemp, border, 2);
+                float diff = constrain(th.floorTemp - BORDER - floorMediumTemp, BORDER, 2);
                 relayTime = calcRelayTime(diff);
                 relayTimeout.start(relayTime);
-            } else if (floorMediumTemp > th.floorTemp + border) {
+            } else if (floorMediumTemp > th.floorTemp + BORDER) {
                 Serial.println("DOWN");
+                relayMixerUp.disable();
                 relayMixerDown.enable();
 
-                float diff = constrain(floorMediumTemp - th.floorTemp - border, border, 2);
+                float diff = constrain(floorMediumTemp - th.floorTemp - BORDER, BORDER, 2);
                 relayTime = calcRelayTime(diff);
                 relayTimeout.start(relayTime);
             } else {
@@ -79,7 +81,7 @@ public:
     }
 
 private:
-    const float border = 0.1;
+    static constexpr float BORDER = 0.1;
 
     Relay relayMixerUp = Relay(RELAY_MIXER_UP);
     Relay relayMixerDown = Relay(RELAY_MIXER_DOWN);
@@ -136,7 +138,7 @@ private:
     }
 
     unsigned int calcRelayTime(float diff) const {
-        return (unsigned int) mapFloat(diff, border, 1.5, 1000, 8000);
+        return (unsigned int) mapFloat(diff, BORDER, 1.5, 1000, 8000);
     }
 
     float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) const {
