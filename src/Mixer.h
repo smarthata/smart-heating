@@ -50,14 +50,14 @@ public:
             if(th.floorColdTemp != DEVICE_DISCONNECTED_C)
                 floorMediumTemp = (th.floorMixedTemp + th.floorColdTemp) * 0.5;
             if (floorMediumTemp < th.floorTemp - border) {
-                DEBUG_SERIAL_LN_F("UP");
+                Serial.println("UP");
                 relayMixerUp.enable();
 
                 float diff = constrain(th.floorTemp - border - floorMediumTemp, border, 2);
                 relayTime = calcRelayTime(diff);
                 relayTimeout.start(relayTime);
             } else if (floorMediumTemp > th.floorTemp + border) {
-                DEBUG_SERIAL_LN_F("DOWN");
+                Serial.println("DOWN");
                 relayMixerDown.enable();
 
                 float diff = constrain(floorMediumTemp - th.floorTemp - border, border, 2);
@@ -65,7 +65,7 @@ public:
                 relayTimeout.start(relayTime);
             } else {
                 relayTime = 0;
-                DEBUG_SERIAL_LN_F("normal");
+                Serial.println("normal");
             }
         }
 
@@ -112,22 +112,18 @@ private:
         th.boilerTemp = safeReadTemp(boilerAddress);
         th.streetTemp = safeReadTemp(streetAddress);
 
-        DEBUG_SERIAL_F("floorTemp = ");
-        DEBUG_SERIAL(th.floorTemp);
-        DEBUG_SERIAL_F(" \tfloorMixed = ");
-        DEBUG_SERIAL(th.floorMixedTemp);
-        DEBUG_SERIAL_F(" \tfloorCold = ");
-        DEBUG_SERIAL(th.floorColdTemp);
-        DEBUG_SERIAL_F(" \theatingHot = ");
-        DEBUG_SERIAL(th.heatingHotTemp);
-        DEBUG_SERIAL_F(" \tbatteryCold = ");
-        DEBUG_SERIAL(th.batteryColdTemp);
-        DEBUG_SERIAL_F(" \tboiler = ");
-        DEBUG_SERIAL(th.boilerTemp);
-        DEBUG_SERIAL_F(" \tstreet = ");
-        DEBUG_SERIAL(th.streetTemp);
-        DEBUG_SERIAL_LN();
+        printValue("floorTemp", th.floorTemp);
+        printValue("floorMixedTemp", th.floorMixedTemp);
+        printValue("floorColdTemp", th.floorColdTemp);
+        printValue("heatingHotTemp", th.heatingHotTemp);
+        printValue("batteryColdTemp", th.batteryColdTemp);
+        printValue("boilerTemp", th.boilerTemp);
+        printValue("streetTemp", th.streetTemp);
+        Serial.println();
     }
+
+    void printValue(const char *name, float value) const {
+        Serial.print(String(name) + " = " + value + " \t"); }
 
     float safeReadTemp(DeviceAddress &address) {
         float tempC = dallasTemperature.getTempC(address);
@@ -157,7 +153,7 @@ private:
 
             if (dto.floorTemp >= 10 && dto.floorTemp <= 45) {
                 th.floorTemp = dto.floorTemp;
-                DEBUG_SERIAL_LN(th.floorTemp);
+                Serial.println(th.floorTemp);
             }
         });
         Wire.onRequest([]() {
@@ -181,51 +177,47 @@ private:
 
     void printDevices() {
         byte deviceCount = dallasTemperature.getDeviceCount();
-        DEBUG_SERIAL_F("DallasTemperature deviceCount = ");
-        DEBUG_SERIAL_LN(deviceCount);
+        Serial.print("DallasTemperature deviceCount = ");
+        Serial.println(deviceCount);
 
         for (int i = 0; i < deviceCount; ++i) {
             blink(300);
         }
 
-#ifdef DEBUG
         oneWire.reset_search();
         DeviceAddress tempAddress;
         while (oneWire.search(tempAddress)) {
             printAddress(tempAddress);
         }
-#endif
     }
 
     void printAddress(DeviceAddress deviceAddress) {
-        DEBUG_SERIAL_F("{");
+        Serial.print("{");
         for (byte i = 0; i < 8; i++) {
-            DEBUG_SERIAL_F("0x");
-            if (deviceAddress[i] < 16) DEBUG_SERIAL_F("0");
-            DEBUG_SERIAL_HEX(deviceAddress[i], HEX);
-            DEBUG_SERIAL_F(", ");
+            Serial.print("0x");
+            if (deviceAddress[i] < 16) Serial.print("0");
+            Serial.print(deviceAddress[i], HEX);
+            Serial.print(", ");
         }
-        DEBUG_SERIAL_LN_F("}");
+        Serial.println("}");
     }
 
     void error() {
         relayMixerUp.disable();
         relayMixerDown.disable();
 
-        DEBUG_SERIAL_LN_F("Error");
+        Serial.println("Error");
 
         for (int i = 0; i < 10; ++i) {
             blink(1000);
         }
-        DEBUG_SERIAL_LN_F("Reset");
-#ifdef DEBUG
+        Serial.println("Reset");
         Serial.flush();
-#endif
         resetFunc();
     }
 
     void blink(unsigned int delayMs = 500) const {
-        DEBUG_SERIAL_F(".");
+        Serial.print(".");
         digitalWrite(LED_BUILTIN, HIGH);
         delay(delayMs);
         digitalWrite(LED_BUILTIN, LOW);
