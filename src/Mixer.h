@@ -5,7 +5,7 @@
 #include <DallasTemperature.h>
 #include <Timeout.h>
 #include <Interval.h>
-#include "Relay.h"
+#include "MixerRelays.h"
 
 void (*resetFunc)() = nullptr;
 
@@ -28,8 +28,7 @@ public:
     static const int DALLAS_RESOLUTION = 12;
 
     static const int DALLAS_PIN = 4;
-    static const int RELAY_MIXER_UP = 12;
-    static const int RELAY_MIXER_DOWN = 11;
+
 
     Mixer() {
         pinMode(LED_BUILTIN, OUTPUT);
@@ -38,6 +37,8 @@ public:
 
         initWire();
         initTemperatureSensors();
+        interval.startWithCurrentTimeEnabled();
+        readInterval.startWithCurrentTimeEnabled();
     }
 
     void loop() {
@@ -45,46 +46,32 @@ public:
             updateTemperatures();
         }
 
-        if (interval.isReady() && th.floorMixedTemp != DEVICE_DISCONNECTED_C) {
+        if (th.floorMixedTemp != DEVICE_DISCONNECTED_C && interval.isReady()) {
             float floorMediumTemp = th.floorMixedTemp;
-            if(th.floorColdTemp != DEVICE_DISCONNECTED_C)
+            if (th.floorColdTemp != DEVICE_DISCONNECTED_C)
                 floorMediumTemp = (th.floorMixedTemp + th.floorColdTemp) * 0.5;
             if (floorMediumTemp < th.floorTemp - BORDER) {
-                Serial.println("UP");
-                relayMixerDown.disable();
-                relayMixerUp.enable();
-
                 float diff = constrain(th.floorTemp - BORDER - floorMediumTemp, BORDER, 2);
-                relayTime = calcRelayTime(diff);
-                relayTimeout.start(relayTime);
+                unsigned int time = calcRelayTime(diff);
+                Serial.println(String("UP ") + time + " ms");
+                mixerRelays.up(time);
             } else if (floorMediumTemp > th.floorTemp + BORDER) {
-                Serial.println("DOWN");
-                relayMixerUp.disable();
-                relayMixerDown.enable();
-
                 float diff = constrain(floorMediumTemp - th.floorTemp - BORDER, BORDER, 2);
-                relayTime = calcRelayTime(diff);
-                relayTimeout.start(relayTime);
+                unsigned int time = calcRelayTime(diff);
+                Serial.println(String("DOWN ") + time + " ms");
+                mixerRelays.down(time);
             } else {
-                relayTime = 0;
                 Serial.println("normal");
             }
         }
 
-        if (relayInterval.isReady() && relayTimeout.isReady()) {
-            if (relayMixerUp.isEnabled()) {
-                relayMixerUp.disable();
-            } else if (relayMixerDown.isEnabled()) {
-                relayMixerDown.disable();
-            }
-        }
+        mixerRelays.loop();
     }
 
 private:
     static constexpr float BORDER = 0.1;
 
-    Relay relayMixerUp = Relay(RELAY_MIXER_UP);
-    Relay relayMixerDown = Relay(RELAY_MIXER_DOWN);
+    MixerRelays mixerRelays = MixerRelays();
 
     OneWire oneWire = OneWire(DALLAS_PIN);
     DallasTemperature dallasTemperature = DallasTemperature(&oneWire);
@@ -96,13 +83,8 @@ private:
     DeviceAddress boilerAddress = {0x28, 0xD4, 0xD3, 0xE1, 0x06, 0x00, 0x00, 0x01};
     DeviceAddress streetAddress = {0x28, 0xFF, 0x98, 0x3A, 0x91, 0x16, 0x04, 0x36};
 
-    Timeout readTimeout;
-
     Interval interval = Interval(MIXER_CYCLE_TIME);
-    Interval readInterval = Interval(1000);
-    Interval relayInterval = Interval(100);
-    Timeout relayTimeout;
-    unsigned int relayTime = 0;
+    Interval readInterval = Interval(100 0);
 
     void updateTemperatures() {
         dallasTemperature.requestTemperatures();
@@ -125,11 +107,13 @@ private:
     }
 
     void printValue(const char *name, float value) const {
-        Serial.print(String(name) + " = " + value + " \t"); }
+        Serial.print(String(name) + " = " + value + " \t");
+    }
 
     float safeReadTemp(DeviceAddress &address) {
         float tempC = dallasTemperature.getTempC(address);
-        readTimeout.start(2000);
+        Timeout readTimeout;
+        readTimeout.start(1000);
         while (tempC == DEVICE_DISCONNECTED_C && !readTimeout.isReady()) {
             dallasTemperature.requestTemperaturesByAddress(address);
             tempC = dallasTemperature.getTempC(address);
@@ -138,7 +122,7 @@ private:
     }
 
     unsigned int calcRelayTime(float diff) const {
-        return (unsigned int) mapFloat(diff, BORDER, 1.5, 1000, 8000);
+        return (unsigned int) mapFloat(diff, BORDER, 2, 1000, 8000);
     }
 
     float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) const {
@@ -185,6 +169,7 @@ private:
         for (int i = 0; i < deviceCount; ++i) {
             blink(300);
         }
+        Serial.println();
 
         oneWire.reset_search();
         DeviceAddress tempAddress;
@@ -205,16 +190,12 @@ private:
     }
 
     void error() {
-        relayMixerUp.disable();
-        relayMixerDown.disable();
-
-        Serial.println("Error");
-
+        Serial.println("Error. RESET");
+        Serial.flush();
+        mixerRelays.disable();
         for (int i = 0; i < 10; ++i) {
             blink(1000);
         }
-        Serial.println("Reset");
-        Serial.flush();
         resetFunc();
     }
 
