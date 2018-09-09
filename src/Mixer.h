@@ -84,7 +84,7 @@ private:
     DeviceAddress streetAddress = {0x28, 0xFF, 0x98, 0x3A, 0x91, 0x16, 0x04, 0x36};
 
     Interval interval = Interval(MIXER_CYCLE_TIME);
-    Interval readInterval = Interval(100 0);
+    Interval readInterval = Interval(1000);
 
     void updateTemperatures() {
         dallasTemperature.requestTemperatures();
