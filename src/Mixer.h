@@ -27,9 +27,6 @@ public:
 
     static const int DALLAS_RESOLUTION = 12;
 
-    static const int DALLAS_PIN = 4;
-
-
     Mixer() {
         pinMode(LED_BUILTIN, OUTPUT);
 
@@ -137,14 +134,13 @@ private:
             SmartHeatingDto dto;
             Wire.readBytes((char *) &dto, (size_t) size);
 
-            if (dto.floorTemp >= 10 && dto.floorTemp <= 45) {
+            if (dto.floorTemp >= 10 && dto.floorTemp <= 40) {
                 th.floorTemp = dto.floorTemp;
                 Serial.println(th.floorTemp);
             }
         });
         Wire.onRequest([]() {
             SmartHeatingDto dto;
-            dto.floorTemp = th.floorTemp;
             dto.floorMixedTemp = th.floorMixedTemp;
             dto.floorColdTemp = th.floorColdTemp;
             dto.heatingHotTemp = th.heatingHotTemp;

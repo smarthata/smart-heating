@@ -39,11 +39,9 @@ public:
     }
 
 private:
-    static const int RELAY_MIXER_UP = 12;
-    static const int RELAY_MIXER_DOWN = 11;
 
-    Relay relayMixerUp = Relay(RELAY_MIXER_UP);
-    Relay relayMixerDown = Relay(RELAY_MIXER_DOWN);
+    Relay relayMixerUp = Relay(RELAY_MIXER_UP_PIN);
+    Relay relayMixerDown = Relay(RELAY_MIXER_DOWN_PIN);
 
     Timeout relayTimeout = Timeout();
 };
