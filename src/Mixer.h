@@ -1,7 +1,6 @@
 #ifndef SMARTHATA_HEATING_MIXER_H
 #define SMARTHATA_HEATING_MIXER_H
 
-#include <Wire.h>
 #include <DallasTemperature.h>
 #include <Timeout.h>
 #include <Interval.h>
@@ -21,7 +20,6 @@ struct SmartHeatingDto {
 
 class Mixer {
 public:
-    static const byte SMART_HEATING_I2C_ADDRESS = 15;
 
     static const int MIXER_CYCLE_TIME = 10000;
 
@@ -32,7 +30,6 @@ public:
 
         th.floorTemp = 25;
 
-        initWire();
         initTemperatureSensors();
         interval.startWithCurrentTimeEnabled();
         readInterval.startWithCurrentTimeEnabled();
@@ -46,7 +43,7 @@ public:
         if (th.floorMixedTemp != DEVICE_DISCONNECTED_C && interval.isReady()) {
             float floorMediumTemp = th.floorMixedTemp;
             if (th.floorColdTemp != DEVICE_DISCONNECTED_C)
-                floorMediumTemp = (th.floorMixedTemp + th.floorColdTemp) * 0.5;
+                floorMediumTemp = (th.floorMixedTemp + th.floorColdTemp) * 0.5f;
             if (floorMediumTemp < th.floorTemp - BORDER) {
                 float diff = constrain(th.floorTemp - BORDER - floorMediumTemp, BORDER, 2);
                 unsigned int time = calcRelayTime(diff);
@@ -109,11 +106,11 @@ private:
 
     float safeReadTemp(DeviceAddress &address) {
         float tempC = dallasTemperature.getTempC(address);
-        Timeout readTimeout;
-        readTimeout.start(1000);
+        Timeout readTimeout(1000);
         while (tempC == DEVICE_DISCONNECTED_C && !readTimeout.isReady()) {
             dallasTemperature.requestTemperaturesByAddress(address);
             tempC = dallasTemperature.getTempC(address);
+            delay(100);
         }
         return tempC;
     }
@@ -124,31 +121,6 @@ private:
 
     float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) const {
         return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-    }
-
-    void initWire() {
-        Wire.begin(SMART_HEATING_I2C_ADDRESS);
-        Wire.onReceive([](int size) {
-            if (size != sizeof(SmartHeatingDto)) return;
-
-            SmartHeatingDto dto;
-            Wire.readBytes((char *) &dto, (size_t) size);
-
-            if (dto.floorTemp >= 10 && dto.floorTemp <= 40) {
-                th.floorTemp = dto.floorTemp;
-                Serial.println(th.floorTemp);
-            }
-        });
-        Wire.onRequest([]() {
-            SmartHeatingDto dto;
-            dto.floorMixedTemp = th.floorMixedTemp;
-            dto.floorColdTemp = th.floorColdTemp;
-            dto.heatingHotTemp = th.heatingHotTemp;
-            dto.batteryColdTemp = th.batteryColdTemp;
-            dto.boilerTemp = th.boilerTemp;
-            dto.streetTemp = th.streetTemp;
-            Wire.write((char *) &dto, sizeof(SmartHeatingDto));
-        });
     }
 
     void initTemperatureSensors() {
