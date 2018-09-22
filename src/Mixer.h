@@ -8,7 +8,7 @@
 #include "TemperatureSensors.h"
 
 
-class Mixer : public DeviceWiFi {
+class Mixer : public Arduinable {
 
 private:
 
@@ -18,37 +18,26 @@ private:
 
     float floorTemp = 25.0;
 
-    MixerRelays mixerRelays = MixerRelays();
-    TemperatureSensors sensors = TemperatureSensors();
-
+    MixerRelays mixerRelays;
     Interval interval = Interval(MIXER_CYCLE_TIME);
-    Interval readInterval = Interval(1000);
 
 public:
 
-    Mixer(const char *ssid, const char *pass) : DeviceWiFi(ssid, pass) {
+    Mixer() {
         pinMode(LED_BUILTIN, OUTPUT);
 
+        mixerRelays.disable();
+
         interval.startWithCurrentTimeEnabled();
-        readInterval.startWithCurrentTimeEnabled();
     }
 
     void loop() override {
-        DeviceWiFi::loop();
-
-        if (readInterval.isReady()) {
-            const SmartHeatingDto &dto = sensors.updateTemperatures();
-            checkMixer(dto);
-        }
-
         mixerRelays.loop();
     }
 
-private:
-
     void checkMixer(const SmartHeatingDto &th) {
-        if (sensors.isValidTemp(th.floorMixedTemp) && interval.isReady()) {
-            float floorMediumTemp = sensors.calcFloorMediumTemp(th);
+        if (TemperatureSensors::isValidTemp(th.floorMixedTemp) && interval.isReady()) {
+            float floorMediumTemp = calcFloorMediumTemp(th);
             Serial.println(String("Expected floorTemp = ") + floorTemp + "\tfloorMediumTemp = " + floorMediumTemp);
             if (floorMediumTemp < floorTemp - BORDER) {
                 float diff = constrain(floorTemp - BORDER - floorMediumTemp, BORDER, 2);
@@ -66,8 +55,17 @@ private:
         }
     }
 
+private:
+
     unsigned int calcRelayTime(float diff) const {
         return (unsigned int) mapFloat(diff, BORDER, 2, 1000, 8000);
+    }
+
+    float calcFloorMediumTemp(const SmartHeatingDto &th) const {
+        float floorMediumTemp = th.floorMixedTemp;
+        if (TemperatureSensors::isValidTemp(th.floorColdTemp))
+            floorMediumTemp = (th.floorMixedTemp + th.floorColdTemp) * 0.5f;
+        return floorMediumTemp;
     }
 
     float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) const {

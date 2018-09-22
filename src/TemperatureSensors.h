@@ -58,20 +58,13 @@ public:
         return th;
     }
 
-    bool isValidTemp(const float tempC) const {
+    static bool isValidTemp(const float tempC) {
         return !isDisconnected(tempC) && fabs(tempC) < 50;
-    }
-
-    float calcFloorMediumTemp(const SmartHeatingDto &th) const {
-        float floorMediumTemp = th.floorMixedTemp;
-        if (isValidTemp(th.floorColdTemp))
-            floorMediumTemp = (th.floorMixedTemp + th.floorColdTemp) * 0.5f;
-        return floorMediumTemp;
     }
 
 private:
 
-    bool isDisconnected(const float tempC) const {
+    static bool isDisconnected(const float tempC) {
         return tempC == DEVICE_DISCONNECTED_C;
     }
 

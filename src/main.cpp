@@ -1,14 +1,14 @@
 #include <Arduino.h>
 #include "config.h"
-#include "Mixer.h"
+#include "SmarthataHeating.h"
 
-Mixer *mixer;
+SmarthataHeating *heating;
 
 void setup() {
     Serial.begin(115200);
-    mixer = new Mixer(ssid, pass);
+    heating = new SmarthataHeating(ssid, pass);
 }
 
 void loop() {
-    mixer->loop();
+    heating->loop();
 }
