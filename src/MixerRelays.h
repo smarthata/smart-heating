@@ -1,9 +1,8 @@
 #ifndef SMARTHATA_HEATING_MIXERRELAYS_H
 #define SMARTHATA_HEATING_MIXERRELAYS_H
 
-#include <Interval.h>
 #include <Timeout.h>
-#include "Relay.h"
+#include <Relay.h>
 
 class MixerRelays {
 public:
