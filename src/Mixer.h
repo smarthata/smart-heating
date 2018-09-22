@@ -2,6 +2,7 @@
 #define SMARTHATA_HEATING_MIXER_H
 
 #include <DallasTemperature.h>
+#include <DeviceWiFi.h>
 #include <Timeout.h>
 #include <Interval.h>
 #include "MixerRelays.h"
@@ -18,14 +19,17 @@ struct SmartHeatingDto {
     float streetTemp = 0;
 } th;
 
-class Mixer {
-public:
+class Mixer : public DeviceWiFi {
+
+private:
 
     static const int MIXER_CYCLE_TIME = 10000;
 
     static const int DALLAS_RESOLUTION = 12;
 
-    Mixer() {
+public:
+
+    Mixer(const char *ssid, const char *pass) : DeviceWiFi(ssid, pass) {
         pinMode(LED_BUILTIN, OUTPUT);
 
         th.floorTemp = 25;
@@ -35,7 +39,9 @@ public:
         readInterval.startWithCurrentTimeEnabled();
     }
 
-    void loop() {
+    void loop() override {
+        DeviceWiFi::loop();
+
         if (readInterval.isReady()) {
             updateTemperatures();
         }
