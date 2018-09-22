@@ -15,6 +15,7 @@ private:
 
     HTTPClient http;
     char buffer[200]{};
+    Interval smarthataPostInterval = Interval(30000);
     Interval narodMonInterval = Interval(300000);
 
 
@@ -32,15 +33,31 @@ public:
             const SmartHeatingDto &dto = sensors.updateTemperatures();
             mixer.checkMixer(dto);
 
-            if (narodMonInterval.isReady()) {
-                postDataToNarodMon(dto);
+            if (TemperatureSensors::isValidTemp(dto.streetTemp)) {
+                if (narodMonInterval.isReady()) {
+                    postDataToNarodMon(dto);
+                }
+                if (smarthataPostInterval.isReady()) {
+                    postDataToSmarthata(dto);
+                }
             }
-
         }
 
     }
 
 private:
+
+    int postDataToSmarthata(const SmartHeatingDto &dto) {
+        sprintf(buffer,
+                "http://smarthata.org/api/devices/1/measures?floor=%1.1f&floorMixed=%1.1f&floorCold=%1.1f&batteryCold=%1.1f&street=%1.1f",
+                mixer.floorTemp,
+                dto.floorMixedTemp,
+                dto.floorColdTemp,
+                dto.batteryColdTemp,
+                dto.streetTemp
+        );
+        return makeHttpPostRequest();
+    }
 
     int postDataToNarodMon(const SmartHeatingDto &dto) {
         Serial.println("Send data to narodmon.ru");
@@ -54,6 +71,15 @@ private:
                 dto.streetTemp
         );
         return makeHttpGetRequest();
+    }
+
+    int makeHttpPostRequest() {
+        Serial.println(buffer);
+        http.begin(buffer);
+        int code = http.POST("");
+        Serial.println(code);
+        http.end();
+        return code;
     }
 
     int makeHttpGetRequest() {
