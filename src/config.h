@@ -4,4 +4,6 @@
 char ssid[] = "ssid";
 char pass[] = "password";
 
+char NARODMON_MAC[] = "00:11:22:33:44:55";
+
 #endif

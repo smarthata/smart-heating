@@ -16,12 +16,12 @@ private:
 
     static constexpr float BORDER = 0.1;
 
-    float floorTemp = 25.0;
-
     MixerRelays mixerRelays;
     Interval interval = Interval(MIXER_CYCLE_TIME);
 
 public:
+
+    float floorTemp = 25.0;
 
     Mixer() {
         pinMode(LED_BUILTIN, OUTPUT);
