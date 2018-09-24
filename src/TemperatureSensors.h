@@ -2,15 +2,15 @@
 #define SMARTHATA_HEATING_TEMPERATURESENSORS_H
 
 #include <DallasTemperature.h>
-#include <Timeout.h>
+#include <Stopwatch.h>
 
 struct SmartHeatingDto {
-    float floorMixedTemp = 0;
-    float floorColdTemp = 0;
-    float heatingHotTemp = 0;
-    float batteryColdTemp = 0;
-    float boilerTemp = 0;
-    float streetTemp = 0;
+    float floorMixedTemp = DEVICE_DISCONNECTED_C;
+    float floorColdTemp = DEVICE_DISCONNECTED_C;
+    float heatingHotTemp = DEVICE_DISCONNECTED_C;
+    float batteryColdTemp = DEVICE_DISCONNECTED_C;
+    float boilerTemp = DEVICE_DISCONNECTED_C;
+    float streetTemp = DEVICE_DISCONNECTED_C;
 };
 
 class TemperatureSensors {
@@ -39,12 +39,12 @@ public:
     SmartHeatingDto updateTemperatures() {
         dallasTemperature.requestTemperatures();
 
-        th.floorMixedTemp = safeReadTemp(mixedWaterAddress);
-        th.floorColdTemp = safeReadTemp(coldWaterAddress);
-        th.heatingHotTemp = safeReadTemp(hotWaterAddress);
-        th.batteryColdTemp = safeReadTemp(batteryColdAddress);
-        th.boilerTemp = safeReadTemp(boilerAddress);
-        th.streetTemp = safeReadTemp(streetAddress);
+        th.floorMixedTemp = safeReadTemp(mixedWaterAddress, th.floorMixedTemp);
+        th.floorColdTemp = safeReadTemp(coldWaterAddress, th.floorColdTemp);
+        th.heatingHotTemp = safeReadTemp(hotWaterAddress, th.heatingHotTemp);
+        th.batteryColdTemp = safeReadTemp(batteryColdAddress, th.batteryColdTemp);
+        th.boilerTemp = safeReadTemp(boilerAddress, th.boilerTemp);
+        th.streetTemp = safeReadTemp(streetAddress,th.streetTemp);
 
         Serial.print("Read temperatures: ");
         printValue("floorMixedTemp", th.floorMixedTemp);
@@ -72,15 +72,15 @@ private:
         Serial.print(String(name) + " = " + value + " \t");
     }
 
-    float safeReadTemp(DeviceAddress &address) {
+    float safeReadTemp(DeviceAddress &address, float prevTemp = DEVICE_DISCONNECTED_C) {
         float tempC = dallasTemperature.getTempC(address);
-        Timeout readTimeout(1000);
-        while (tempC == DEVICE_DISCONNECTED_C && !readTimeout.isReady()) {
+        Stopwatch stopwatch;
+        while (!isValidTemp(tempC) && stopwatch.isLessThan(1000)) {
+            delay(20);
             dallasTemperature.requestTemperaturesByAddress(address);
             tempC = dallasTemperature.getTempC(address);
-            delay(100);
         }
-        return tempC;
+        return isValidTemp(tempC) ? tempC : prevTemp;
     }
 
     void printDevices() {
