@@ -12,12 +12,12 @@ class Mixer : public Arduinable {
 
 private:
 
-    static const int MIXER_CYCLE_TIME = 10000;
+    static const int MIXER_CYCLE_SAFE_DELAY_MS = 2000;
 
     static constexpr float BORDER = 0.1;
 
     MixerRelays mixerRelays;
-    Interval interval = Interval(MIXER_CYCLE_TIME);
+    Timeout cycleTimeout;
 
 public:
 
@@ -28,7 +28,6 @@ public:
 
         mixerRelays.disable();
 
-        interval.startWithCurrentTimeEnabled();
     }
 
     void loop() override {
@@ -36,7 +35,7 @@ public:
     }
 
     void checkMixer(const SmartHeatingDto &th) {
-        if (TemperatureSensors::isValidTemp(th.floorMixedTemp) && interval.isReady()) {
+        if (cycleTimeout.isReady() && TemperatureSensors::isValidTemp(th.floorMixedTemp)) {
             float floorMediumTemp = calcFloorMediumTemp(th);
             Serial.println(String("Expected floorTemp = ") + floorTemp + "\tfloorMediumTemp = " + floorMediumTemp);
             if (floorMediumTemp < floorTemp - BORDER) {
@@ -44,11 +43,13 @@ public:
                 unsigned int time = calcRelayTime(diff);
                 Serial.println(String("UP ") + time + " ms");
                 mixerRelays.up(time);
+                cycleTimeout.start(time + MIXER_CYCLE_SAFE_DELAY_MS);
             } else if (floorMediumTemp > floorTemp + BORDER) {
                 float diff = constrain(floorMediumTemp - floorTemp - BORDER, BORDER, 2);
                 unsigned int time = calcRelayTime(diff);
                 Serial.println(String("DOWN ") + time + " ms");
                 mixerRelays.down(time);
+                cycleTimeout.start(time + MIXER_CYCLE_SAFE_DELAY_MS);
             } else {
                 Serial.println("normal");
             }
