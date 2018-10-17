@@ -49,11 +49,13 @@ private:
 
     int postDataToSmarthata(const SmartHeatingDto &dto) {
         sprintf(buffer,
-                "http://smarthata.org/api/devices/1/measures?floor=%1.1f&floorMixed=%1.1f&floorCold=%1.1f&batteryCold=%1.1f&street=%1.1f",
+                "http://smarthata.org/api/devices/1/measures?floor=%1.1f&mixed=%1.1f&cold=%1.1f&battery=%1.1f&heating=%1.1f&boiler=%1.1f&street=%1.1f",
                 mixer.floorTemp,
                 dto.floorMixedTemp,
                 dto.floorColdTemp,
                 dto.batteryColdTemp,
+                dto.heatingHotTemp,
+                dto.boilerTemp,
                 dto.streetTemp
         );
         return makeHttpPostRequest();
@@ -62,12 +64,14 @@ private:
     int postDataToNarodMon(const SmartHeatingDto &dto) {
         Serial.println("Send data to narodmon.ru");
         sprintf(buffer,
-                "http://narodmon.ru/get?ID=%s&floor=%1.1f&floorMixed=%1.1f&floorCold=%1.1f&batteryCold=%1.1f&street=%1.1f",
+                "http://narodmon.ru/get?ID=%s&floor=%1.1f&mixed=%1.1f&cold=%1.1f&battery=%1.1f&heating=%1.1f&boiler=%1.1f&street=%1.1f",
                 NARODMON_MAC,
                 mixer.floorTemp,
                 dto.floorMixedTemp,
                 dto.floorColdTemp,
                 dto.batteryColdTemp,
+                dto.heatingHotTemp,
+                dto.boilerTemp,
                 dto.streetTemp
         );
         return makeHttpGetRequest();
