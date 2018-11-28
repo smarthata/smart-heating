@@ -59,7 +59,7 @@ public:
     }
 
     static bool isValidTemp(const float tempC) {
-        return !isDisconnected(tempC) && fabs(tempC) < 50;
+        return !isDisconnected(tempC) && tempC > -50 && tempC < 120;
     }
 
 private:
