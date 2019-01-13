@@ -3,6 +3,7 @@
 
 // SMARTHATA
 int device_id = 1;
+char firmware[] = "http://smarthata.org/firmware.bin";
 
 // WIFI
 char ssid[] = "ssid";

@@ -2,17 +2,23 @@
 #define SMARTHATA_MQTT_H
 
 #include <ESP8266WiFi.h>
+#include <ESP8266httpUpdate.h>
 #include <WiFiClient.h>
 #include <MQTTClient.h>
 #include <Timeout.h>
 
+bool updateFromMqtt = false;
 bool tempSetupByMqtt = false;
 float tempFromMqtt = 0;
 
 void messageReceived(String &topic, String &payload) {
     Serial.println("incoming: [" + topic + "] - [" + payload + "]");
-    tempFromMqtt = payload.toFloat();
-    tempSetupByMqtt = true;
+    if (payload.equals("update")) {
+        updateFromMqtt = true;
+    } else {
+        tempFromMqtt = payload.toFloat();
+        tempSetupByMqtt = true;
+    }
 }
 
 class SmartHataMqtt {
@@ -42,6 +48,10 @@ public:
 
     void loop() {
         mqttClient.loop();
+        if (updateFromMqtt) {
+            doUpdate();
+        }
+
         if (WiFi.isConnected() && !mqttClient.connected()) {
             Serial.println("Connecting MQTT broker [" + String(mqtt_broker) + "]");
             Timeout timeout = Timeout(MQTT_CONNECTION_TIMEOUT);
@@ -55,9 +65,10 @@ public:
             }
             Serial.println();
             Serial.println("MQTT connected!");
+            publish("/heating/floor", "started");
 
             Serial.println("Subscribing MQTT topic");
-            if (mqttClient.subscribe("/heating/floor", 1)) {
+            if (mqttClient.subscribe("/heating/floor/in", 1)) {
                 Serial.println("MQTT topic subscribed!");
             } else {
                 Serial.println("\n\n\n>>> Subscribe to MQTT topic failed!\n\n\n");
@@ -76,6 +87,29 @@ public:
         if (mqttClient.connected()) {
             mqttClient.publish(topic, message);
         }
+    }
+
+    void doUpdate() {
+        Serial.println("Update smarthata-heating from smarthata.org");
+        this->publish("/heating/floor/message", "Update smarthata-heating from smarthata.org");
+
+        t_httpUpdate_return ret = ESPhttpUpdate.update(firmware);
+        switch (ret) {
+            case HTTP_UPDATE_FAILED:
+                Serial.println("[update] Update failed.");
+                this->publish("/heating/floor/message", "[update] Update failed.");
+                break;
+            case HTTP_UPDATE_NO_UPDATES:
+                Serial.println("[update] Update no Update.");
+                this->publish("/heating/floor/message", "[update] Update no Update.");
+                break;
+            case HTTP_UPDATE_OK:
+                this->publish("/heating/floor/message", "[update] Update ok.");
+                Serial.println("[update] Update ok."); // may not called we reboot the ESP
+                break;
+        }
+
+        updateFromMqtt = false;
     }
 
 };
