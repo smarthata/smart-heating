@@ -1,6 +1,10 @@
 #ifndef SMARTHATA_HEATING_CONFIG_H
 #define SMARTHATA_HEATING_CONFIG_H
 
+// SMARTHATA
+int device_id = 1;
+
+// WIFI
 char ssid[] = "ssid";
 char pass[] = "password";
 

@@ -14,14 +14,15 @@ private:
 
     static const int MIXER_CYCLE_SAFE_DELAY_MS = 2000;
 
-    static constexpr float BORDER = 0.1;
+    static constexpr float BORDER = 0.2f;
 
     MixerRelays mixerRelays;
     Timeout cycleTimeout;
 
 public:
 
-    float floorTemp = 25.0;
+    float floorTemp = 30.0f;
+    float floorTempCorrected = floorTemp;
 
     Mixer() {
         pinMode(LED_BUILTIN, OUTPUT);
@@ -37,15 +38,22 @@ public:
     void checkMixer(const SmartHeatingDto &th) {
         if (cycleTimeout.isReady() && TemperatureSensors::isValidTemp(th.floorMixedTemp)) {
             float floorMediumTemp = calcFloorMediumTemp(th);
-            Serial.println(String("Expected floorTemp = ") + floorTemp + "\tfloorMediumTemp = " + floorMediumTemp);
-            if (floorMediumTemp < floorTemp - BORDER) {
-                float diff = constrain(floorTemp - BORDER - floorMediumTemp, BORDER, 2);
+
+            calcFloorTempCorrected(th);
+
+            Serial.println(
+                    String("Expected floorTemp = ") + floorTempCorrected +
+                    "\tfloorMediumTemp = " + floorMediumTemp +
+                    "\tfloorTempCorrected = " + floorTempCorrected
+            );
+            if (floorMediumTemp < floorTempCorrected - BORDER) {
+                float diff = constrain(floorTempCorrected - BORDER - floorMediumTemp, BORDER, 2);
                 unsigned int time = calcRelayTime(diff);
                 Serial.println(String("UP ") + time + " ms");
                 mixerRelays.up(time);
                 cycleTimeout.start(time + MIXER_CYCLE_SAFE_DELAY_MS);
-            } else if (floorMediumTemp > floorTemp + BORDER) {
-                float diff = constrain(floorMediumTemp - floorTemp - BORDER, BORDER, 2);
+            } else if (floorMediumTemp > floorTempCorrected + BORDER) {
+                float diff = constrain(floorMediumTemp - floorTempCorrected - BORDER, BORDER, 2);
                 unsigned int time = calcRelayTime(diff);
                 Serial.println(String("DOWN ") + time + " ms");
                 mixerRelays.down(time);
@@ -59,7 +67,7 @@ public:
 private:
 
     unsigned int calcRelayTime(float diff) const {
-        return (unsigned int) mapFloat(diff, BORDER, 2, 1000, 8000);
+        return (unsigned int) mapFloat(diff, BORDER, 2, 1000, 5000);
     }
 
     float calcFloorMediumTemp(const SmartHeatingDto &th) const {
@@ -67,6 +75,14 @@ private:
         if (TemperatureSensors::isValidTemp(th.floorColdTemp))
             floorMediumTemp = (th.floorMixedTemp + th.floorColdTemp) * 0.5f;
         return floorMediumTemp;
+    }
+
+    float calcFloorTempCorrected(const SmartHeatingDto &th) {
+        floorTempCorrected = floorTemp;
+        if (TemperatureSensors::isValidTemp(th.streetTemp)) {
+            floorTempCorrected = floorTemp - th.streetTemp * 0.3f;
+        }
+        return floorTempCorrected;
     }
 
     float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) const {
