@@ -7,6 +7,14 @@
 class MixerRelays {
 public:
 
+    void run(int time) {
+        if (time > 0) {
+            up(static_cast<unsigned int>(time));
+        } else {
+            down(static_cast<unsigned int>(-time));
+        }
+    }
+
     void up(unsigned int timeEnabled) {
         relayMixerDown.disable();
         relayMixerUp.enable();

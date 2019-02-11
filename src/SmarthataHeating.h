@@ -81,7 +81,7 @@ private:
         JsonObject &root = jsonBuffer.createObject();
         root["floor-corrected"] = mixer.floorTempCorrected;
         root["mixer-position"] = mixer.getMixerPositionPercentage();
-        root["mixer-stabilized"] = mixer.isMixerStabilized();
+        root["mixer-pid-value-sec"] = mixer.valueSec;
         addTime(root);
         publish(root);
 
@@ -131,11 +131,11 @@ private:
 
     void postDataToSmarthata(const SmartHeatingDto &dto) {
         sprintf(buffer,
-                "http://smarthata.org/api/devices/1/measures?floor=%1.1f&corrected=%1.1f&mixer-position=%d&mixer-stabilized=%d&bedroom-temp-expected=%1.1f&battery-pomp=%d",
+                "http://smarthata.org/api/devices/1/measures?floor=%1.1f&corrected=%1.1f&mixer-pid-value-sec=%1.1f&mixer-position=%d&bedroom-temp-expected=%1.1f&battery-pomp=%d",
                 mixer.floorTemp,
                 mixer.floorTempCorrected,
+                mixer.valueSec,
                 mixer.getMixerPositionPercentage(),
-                mixer.isMixerStabilized(),
                 battery.expectedBedroomTemp,
                 battery.getBatteryPompState()
         );
