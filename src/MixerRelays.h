@@ -22,11 +22,9 @@ public:
     void loop() {
         if (relayTimeout.isReady()) {
             if (relayMixerUp.isEnabled()) {
-                Serial.println("disable UP");
                 relayMixerUp.disable();
             }
             if (relayMixerDown.isEnabled()) {
-                Serial.println("disable DOWN");
                 relayMixerDown.disable();
             }
         }

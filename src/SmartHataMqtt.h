@@ -7,18 +7,41 @@
 #include <MQTTClient.h>
 #include <Timeout.h>
 
-bool updateFromMqtt = false;
-bool tempSetupByMqtt = false;
-float tempFromMqtt = 0;
+
+struct MqttUpdate {
+    int secondOfDay = -1;
+
+    bool firmwareUpdate = false;
+
+    bool floorTempUpdate = false;
+    float floorTemp = 0;
+
+    float bedroomTemp = -127.0f;
+    float bedroomHum = -127.0f;
+} mqttUpdate;
+
 
 void messageReceived(String &topic, String &payload) {
-    Serial.println("incoming: [" + topic + "] - [" + payload + "]");
-    if (payload.equals("update")) {
-        updateFromMqtt = true;
-    } else {
-        tempFromMqtt = payload.toFloat();
-        tempSetupByMqtt = true;
+    Serial.print("incoming: [" + topic + "] - [" + payload + "]\n");
+    if (topic.equals("/heating/floor/in")) {
+        if (payload.equals("update")) {
+            mqttUpdate.firmwareUpdate = true;
+        } else if (payload.equals("restart")) {
+            ESP.restart();
+        } else {
+            mqttUpdate.floorTemp = payload.toFloat();
+            mqttUpdate.floorTempUpdate = true;
+        }
+    } else if (topic.equals("/second-of-day")) {
+        mqttUpdate.secondOfDay = payload.toInt();
+
+    } else if (topic.equals("/room/bedroom")) {
+        DynamicJsonBuffer jsonBuffer;
+        const JsonVariant &root = jsonBuffer.parse(payload);
+        mqttUpdate.bedroomHum = root["hum"];
+        mqttUpdate.bedroomTemp = root["temp"];
     }
+
 }
 
 class SmartHataMqtt {
@@ -48,68 +71,65 @@ public:
 
     void loop() {
         mqttClient.loop();
-        if (updateFromMqtt) {
+        if (mqttUpdate.firmwareUpdate) {
             doUpdate();
         }
 
         if (WiFi.isConnected() && !mqttClient.connected()) {
-            Serial.println("Connecting MQTT broker [" + String(mqtt_broker) + "]");
             Timeout timeout = Timeout(MQTT_CONNECTION_TIMEOUT);
             while (!mqttClient.connect(mqtt_client_id, mqtt_username, mqtt_password)) {
-                Serial.print(".");
+                DEBUG_SH(".");
                 delay(100);
                 if (timeout.isReady()) {
-                    Serial.println("\n\n\n>>> Connection to MQTT broker [" + String(mqtt_broker) + "] timeout!\n\n\n");
                     return;
                 }
             }
-            Serial.println();
-            Serial.println("MQTT connected!");
-            publish("/heating/floor", "started");
 
-            Serial.println("Subscribing MQTT topic");
-            if (mqttClient.subscribe("/heating/floor/in", 1)) {
-                Serial.println("MQTT topic subscribed!");
-            } else {
-                Serial.println("\n\n\n>>> Subscribe to MQTT topic failed!\n\n\n");
-            }
-
+            Serial.print(F("Subscribing MQTT topic\n"));
+            subs("/heating/floor/in", 1);
+            subs("/room/bedroom");
+            subs("/second-of-day");
         }
     }
 
-    void publish(const char topic[], char message[]) {
-        if (mqttClient.connected()) {
-            mqttClient.publish(topic, message);
+    void subs(const char *topic, int qos = 0) {
+        if (mqttClient.subscribe(topic, qos)) {
+            Serial.print(F("MQTT topic subscribed!\n"));
+        } else {
+            Serial.print(F("\n\n\n>>> Subscribe to MQTT topic failed!\n\n\n"));
         }
     }
 
-    void publish(const char topic[], const String &message) {
+    void publish(const char topic[], const char message[], int qos = 0) {
         if (mqttClient.connected()) {
-            mqttClient.publish(topic, message);
+            mqttClient.publish(topic, message, false, qos);
         }
+    }
+
+    void publish(const char topic[], const String &message, int qos = 0) {
+        this->publish(topic, message.c_str(), qos);
     }
 
     void doUpdate() {
-        Serial.println("Update smarthata-heating from smarthata.org");
-        this->publish("/heating/floor/message", "Update smarthata-heating from smarthata.org");
+        this->publish("/heating/floor/message", "Update smarthata-heating from smarthata.org", 1);
 
         t_httpUpdate_return ret = ESPhttpUpdate.update(firmware);
         switch (ret) {
             case HTTP_UPDATE_FAILED:
-                Serial.println("[update] Update failed.");
-                this->publish("/heating/floor/message", "[update] Update failed.");
+                Serial.print(F("[update] Update failed.\n"));
+                this->publish("/heating/floor/message", "[update] Update failed.", 1);
                 break;
             case HTTP_UPDATE_NO_UPDATES:
-                Serial.println("[update] Update no Update.");
-                this->publish("/heating/floor/message", "[update] Update no Update.");
+                Serial.print(F("[update] Update no Update.\n"));
+                this->publish("/heating/floor/message", "[update] Update no Update.", 1);
                 break;
             case HTTP_UPDATE_OK:
-                this->publish("/heating/floor/message", "[update] Update ok.");
-                Serial.println("[update] Update ok."); // may not called we reboot the ESP
+                this->publish("/heating/floor/message", "[update] Update ok.", 1);
+                Serial.print(F("[update] Update ok.\n")); // may not called we reboot the ESP
                 break;
         }
 
-        updateFromMqtt = false;
+        mqttUpdate.firmwareUpdate = false;
     }
 
 };

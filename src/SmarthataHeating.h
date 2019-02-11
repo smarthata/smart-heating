@@ -7,17 +7,19 @@
 #include "SmartHataMqtt.h"
 #include "config.h"
 #include "Mixer.h"
+#include "Battery.h"
 
 class SmarthataHeating : public DeviceWiFi {
 private:
 
     Mixer mixer;
+    Battery battery;
     TemperatureSensors sensors;
     Interval readInterval = Interval(2000);
 
     HTTPClient http;
     char buffer[200]{};
-    Interval mqttPublishInterval = Interval(20000);
+    Interval mqttPublishInterval = Interval(30000);
     Interval smarthataPostInterval = Interval(30000);
     Interval narodMonInterval = Interval(300000);
 
@@ -29,24 +31,25 @@ public:
         mqttPublishInterval.startWithCurrentTimeEnabled();
         smarthataPostInterval.startWithCurrentTimeEnabled();
         narodMonInterval.startWithCurrentTimeEnabled();
+        smartHataMqtt.publish("/messages", "smarthata-heating started", 1);
     }
 
     void loop() override {
         DeviceWiFi::loop();
         mixer.loop();
+        battery.loop();
         smartHataMqtt.loop();
 
-        if (tempSetupByMqtt) {
+        if (mqttUpdate.floorTempUpdate) {
             String message;
-            if (tempFromMqtt >= 10 && tempFromMqtt <= 35) {
-                mixer.floorTemp = tempFromMqtt;
-                message = String("Setup new floorTemp [") + tempFromMqtt + "]";
+            if (mqttUpdate.floorTemp >= 10 && mqttUpdate.floorTemp <= 35) {
+                mixer.floorTemp = mqttUpdate.floorTemp;
+                message = String("Setup new floorTemp [") + mqttUpdate.floorTemp + "]";
             } else {
-                message = String("Bad request temp [") + tempFromMqtt + "]";
+                message = String("Bad request temp [") + mqttUpdate.floorTemp + "]";
             }
-            Serial.println(message);
-            smartHataMqtt.publish("/messages", message);
-            tempSetupByMqtt = false;
+            smartHataMqtt.publish("/messages", message, 1);
+            mqttUpdate.floorTempUpdate = false;
         }
 
         if (readInterval.isReady()) {
@@ -76,15 +79,14 @@ private:
         DynamicJsonBuffer jsonBuffer;
 
         JsonObject &root = jsonBuffer.createObject();
-        root["deviceId"] = device_id;
-        root["temp"] = mixer.floorTemp;
-        root["corrected"] = mixer.floorTempCorrected;
+        root["floor-corrected"] = mixer.floorTempCorrected;
+        root["mixer-position"] = mixer.getMixerPositionPercentage();
+        root["mixer-stabilized"] = mixer.isMixerStabilized();
         addTime(root);
         publish(root);
 
         jsonBuffer.clear();
         JsonObject &root2 = jsonBuffer.createObject();
-        root2["deviceId"] = device_id;
         if (TemperatureSensors::isValidTemp(dto.floorMixedTemp)) root2["mixed"] = dto.floorMixedTemp;
         if (TemperatureSensors::isValidTemp(dto.floorColdTemp)) root2["cold"] = dto.floorColdTemp;
         if (TemperatureSensors::isValidTemp(dto.heatingHotTemp)) root2["hot"] = dto.heatingHotTemp;
@@ -92,6 +94,13 @@ private:
         if (TemperatureSensors::isValidTemp(dto.batteryColdTemp)) root2["battery"] = dto.batteryColdTemp;
         if (TemperatureSensors::isValidTemp(dto.boilerTemp)) root2["boiler"] = dto.boilerTemp;
         publish(root2);
+
+        jsonBuffer.clear();
+        JsonObject &root3 = jsonBuffer.createObject();
+        root3["bedroom-temp"] = mqttUpdate.bedroomTemp;
+        root3["bedroom-temp-expected"] = battery.expectedBedroomTemp;
+        root3["battery-pomp"] = battery.getBatteryPompState();
+        publish(root3);
     }
 
     void addTime(JsonObject &root) {
@@ -120,11 +129,19 @@ private:
         smartHataMqtt.publish("/heating/floor", message);
     }
 
-    int postDataToSmarthata(const SmartHeatingDto &dto) {
+    void postDataToSmarthata(const SmartHeatingDto &dto) {
         sprintf(buffer,
-                "http://smarthata.org/api/devices/1/measures?floor=%1.1f&corrected=%1.1f&mixed=%1.1f&cold=%1.1f&battery=%1.1f&heating=%1.1f&boiler=%1.1f&street=%1.1f",
+                "http://smarthata.org/api/devices/1/measures?floor=%1.1f&corrected=%1.1f&mixer-position=%d&mixer-stabilized=%d&bedroom-temp-expected=%1.1f&battery-pomp=%d",
                 mixer.floorTemp,
                 mixer.floorTempCorrected,
+                mixer.getMixerPositionPercentage(),
+                mixer.isMixerStabilized(),
+                battery.expectedBedroomTemp,
+                battery.getBatteryPompState()
+        );
+        makeHttpPostRequest();
+        sprintf(buffer,
+                "http://smarthata.org/api/devices/1/measures?mixed=%1.1f&cold=%1.1f&battery=%1.1f&heating=%1.1f&boiler=%1.1f&street=%1.1f",
                 dto.floorMixedTemp,
                 dto.floorColdTemp,
                 dto.batteryColdTemp,
@@ -132,15 +149,14 @@ private:
                 dto.boilerTemp,
                 dto.streetTemp
         );
-        return makeHttpPostRequest();
+        makeHttpPostRequest();
     }
 
     int postDataToNarodMon(const SmartHeatingDto &dto) {
         Serial.println("Send data to narodmon.ru");
         sprintf(buffer,
-                "http://narodmon.ru/get?ID=%s&floor=%1.1f&corrected=%1.1f&mixed=%1.1f&street=%1.1f",
+                "http://narodmon.ru/get?ID=%s&corrected=%1.1f&mixed=%1.1f&street=%1.1f",
                 NARODMON_MAC,
-                mixer.floorTemp,
                 mixer.floorTempCorrected,
                 dto.floorMixedTemp,
                 dto.streetTemp
@@ -148,20 +164,21 @@ private:
         return makeHttpGetRequest();
     }
 
-    int makeHttpPostRequest() {
-        Serial.println(buffer);
+    int makeHttpPostRequest(int retryCount = 1) {
         http.begin(buffer);
         int code = http.POST("");
-        Serial.println(code);
         http.end();
+
+        if (code < 0 && retryCount > 0) {
+            return makeHttpPostRequest(retryCount - 1);
+        }
+
         return code;
     }
 
     int makeHttpGetRequest() {
-        Serial.println(buffer);
         http.begin(buffer);
         int code = http.GET();
-        Serial.println(code);
         http.end();
         return code;
     }

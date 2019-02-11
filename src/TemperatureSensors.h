@@ -11,7 +11,7 @@ struct SmartHeatingDto {
     float batteryColdTemp = DEVICE_DISCONNECTED_C;
     float boilerTemp = DEVICE_DISCONNECTED_C;
     float streetTemp = DEVICE_DISCONNECTED_C;
-};
+} th;
 
 class TemperatureSensors {
 private:
@@ -19,8 +19,6 @@ private:
 
     OneWire oneWire = OneWire(DALLAS_PIN);
     DallasTemperature dallasTemperature = DallasTemperature(&oneWire);
-
-    SmartHeatingDto th;
 
     DeviceAddress mixedWaterAddress = {0x28, 0x61, 0xBF, 0x3A, 0x06, 0x00, 0x00, 0x48};
     DeviceAddress coldWaterAddress = {0x28, 0x55, 0x8A, 0xCC, 0x06, 0x00, 0x00, 0x57};
